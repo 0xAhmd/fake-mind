@@ -29,7 +29,7 @@ class DeepseekApiService {
         body: _getBody(content),
       );
 
-// check if the response is successful
+      // check if the response is successful
       if (response.statusCode == 200) {
         // parse the response body
         // and extract the message content
@@ -45,7 +45,10 @@ class DeepseekApiService {
   }
 
   Map<String, String> _getHeaders() {
-    return {'Content-Type': 'application/json', 'Authorization': _apiKey};
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_apiKey', // Add 'Bearer' prefix
+    };
   }
 
   String _getBody(String content) => jsonEncode({
