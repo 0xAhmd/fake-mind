@@ -41,23 +41,39 @@ class _ChatPageState extends State<ChatPage> {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _controller,
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message',
-                    border: OutlineInputBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Type a message',
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: Colors.greenAccent,
+                          width: 2.0,
+                        ),
+                        borderRadius: BorderRadius.all(Radius.circular(16.0)),
+                      ),
+                    ),
                   ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.send),
-                onPressed: () {
-                  final content = _controller.text.trim();
-                  if (content.isNotEmpty) {
-                    context.read<ChatProvider>().sendMessage(content);
-                    _controller.clear();
-                  }
-                },
+              Container(
+                margin: const EdgeInsets.only(right: 16.0),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.green,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.send, color: Colors.white),
+                  onPressed: () {
+                    final content = _controller.text.trim();
+                    if (content.isNotEmpty) {
+                      context.read<ChatProvider>().sendMessage(content);
+                      _controller.clear();
+                    }
+                  },
+                ),
               ),
             ],
           ),
