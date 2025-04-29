@@ -38,7 +38,7 @@ class _ChatPageState extends State<ChatPage> {
       child: Scaffold(
         body: Column(
           children: [
-            SizedBox(height: 14),
+            const SizedBox(height: 14),
             Expanded(
               child: Consumer<ChatProvider>(
                 builder: (context, chatProvider, child) {
@@ -66,7 +66,7 @@ class _ChatPageState extends State<ChatPage> {
               builder: (context, chatProvider, child) {
                 if (chatProvider.isLoading) {
                   return Padding(
-                    padding: EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(16.0),
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 180.0),
@@ -123,7 +123,7 @@ class _ChatPageState extends State<ChatPage> {
                 ),
                 Container(
                   margin: const EdgeInsets.only(right: 16.0),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.black,
                   ),
