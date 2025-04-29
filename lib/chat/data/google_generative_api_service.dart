@@ -17,7 +17,6 @@ class GoogleGenerativeApiService {
       );
 
       // Log the response body for debugging
-      print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);

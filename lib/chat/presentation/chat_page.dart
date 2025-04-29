@@ -11,7 +11,27 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  final ScrollController _scrollController = ScrollController();
   final TextEditingController _controller = TextEditingController();
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+    void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -29,6 +49,7 @@ class _ChatPageState extends State<ChatPage> {
                   );
                 }
                 return ListView.builder(
+                  controller: _scrollController,
                   itemBuilder: (context, index) {
                     final message = chatProvider.messages[index];
                     return ChatBubble(message: message);
@@ -110,6 +131,7 @@ class _ChatPageState extends State<ChatPage> {
                       context.read<ChatProvider>().sendMessage(content);
                       _controller.clear();
                       FocusScope.of(context).unfocus();
+                      _scrollToBottom(); 
                     }
                   },
                 ),
