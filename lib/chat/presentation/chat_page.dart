@@ -20,7 +20,7 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
-    void _scrollToBottom() {
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -31,14 +31,14 @@ class _ChatPageState extends State<ChatPage> {
       }
     });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      
       child: Scaffold(
         body: Column(
           children: [
+            SizedBox(height: 14),
             Expanded(
               child: Consumer<ChatProvider>(
                 builder: (context, chatProvider, child) {
@@ -61,25 +61,27 @@ class _ChatPageState extends State<ChatPage> {
                 },
               ),
             ),
-      
+
             Consumer<ChatProvider>(
               builder: (context, chatProvider, child) {
                 if (chatProvider.isLoading) {
-                  return  Padding(
+                  return Padding(
                     padding: EdgeInsets.all(16.0),
-                    child: Center(child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 180.0),
-                      child: LinearProgressIndicator(
-                        color: Colors.white,
-                        backgroundColor: Colors.grey[600],
-                      ))),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 180.0),
+                        child: LinearProgressIndicator(
+                          color: Colors.white,
+                          backgroundColor: Colors.grey[600],
+                        ),
+                      ),
+                    ),
                   );
                 }
                 return const SizedBox.shrink();
               },
             ),
-      
-      
+
             Row(
               children: [
                 Expanded(
@@ -99,7 +101,7 @@ class _ChatPageState extends State<ChatPage> {
                           vertical: 15.0,
                           horizontal: 16.0,
                         ),
-      
+
                         border: OutlineInputBorder(
                           borderSide: BorderSide(
                             color: Colors.grey[300]!,
@@ -107,7 +109,7 @@ class _ChatPageState extends State<ChatPage> {
                           ),
                           borderRadius: BorderRadius.circular(8.0),
                         ),
-      
+
                         focusedBorder: OutlineInputBorder(
                           borderSide: BorderSide(
                             color: Colors.grey[300]!,
@@ -133,7 +135,7 @@ class _ChatPageState extends State<ChatPage> {
                         context.read<ChatProvider>().sendMessage(content);
                         _controller.clear();
                         FocusScope.of(context).unfocus();
-                        _scrollToBottom(); 
+                        _scrollToBottom();
                       }
                     },
                   ),
