@@ -42,14 +42,20 @@ class _ChatPageState extends State<ChatPage> {
           Consumer<ChatProvider>(
             builder: (context, chatProvider, child) {
               if (chatProvider.isLoading) {
-                return const Padding(
+                return  Padding(
                   padding: EdgeInsets.all(16.0),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 180.0),
+                    child: LinearProgressIndicator(
+                      color: Colors.white,
+                      backgroundColor: Colors.grey[600],
+                    ))),
                 );
               }
               return const SizedBox.shrink();
             },
           ),
+
 
           Row(
             children: [
