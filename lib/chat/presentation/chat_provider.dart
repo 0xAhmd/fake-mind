@@ -1,21 +1,22 @@
-import 'package:fake_mind/chat/data/deepseek_api_service.dart';
+import 'package:fake_mind/chat/data/google_generative_api_service.dart';
 import 'package:fake_mind/chat/data/model/message_model.dart';
 import 'package:flutter/material.dart';
 
 class ChatProvider with ChangeNotifier {
-  final _apiService = DeepseekApiService(
-    apiKey: 'sk-2d54856600ba4f58a722333104bea9ce',
+  final _apiService = GoogleGenerativeApiService(
+    apiKey: 'AIzaSyAWOeNrYx7KyWsp9eLjt8BEyJNTSK6bpvk',
   );
-  // messages list to store the messages
+
+  // Messages list to store the messages
   final List<MessageModel> _messages = [];
-  // loading state to show loading indicator
+  // Loading state to show loading indicator
   bool _isLoading = false;
+
   // GETTERS
   List<MessageModel> get messages => _messages;
   bool get isLoading => _isLoading;
 
-  // method to send a message
-
+  // Method to send a message
   Future<void> sendMessage(String content) async {
     if (content.trim().isEmpty) return;
 
@@ -24,10 +25,11 @@ class ChatProvider with ChangeNotifier {
       isUser: true,
       timestamp: DateTime.now(),
     );
-    // add the user message to the list
+    // Add the user message to the list
     _messages.add(userMessage);
     notifyListeners();
-    // set loading state to true
+
+    // Set loading state to true
     _isLoading = true;
     notifyListeners();
 
@@ -40,8 +42,6 @@ class ChatProvider with ChangeNotifier {
         timestamp: DateTime.now(),
       );
       _messages.add(responseMessage);
-
-      
     } catch (e) {
       final errorMessage = MessageModel(
         content: 'Sorry, something went wrong: $e',
@@ -50,6 +50,7 @@ class ChatProvider with ChangeNotifier {
       );
       _messages.add(errorMessage);
     }
+
     _isLoading = false;
     notifyListeners();
   }
