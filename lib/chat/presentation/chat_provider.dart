@@ -1,10 +1,11 @@
 import 'package:fake_mind/chat/data/google_generative_api_service.dart';
 import 'package:fake_mind/chat/data/model/message_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ChatProvider with ChangeNotifier {
   final _apiService = GoogleGenerativeApiService(
-    apiKey: 'AIzaSyAWOeNrYx7KyWsp9eLjt8BEyJNTSK6bpvk',
+    apiKey: dotenv.env['API_KEY'] ?? '',
   );
 
   // Messages list to store the messages
