@@ -13,7 +13,7 @@ class ChatBubble extends StatelessWidget {
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          vertical: 13.0,
+          vertical: 14.0,
           horizontal: 17.0,
         ), // Adjusted padding
         margin: const EdgeInsets.symmetric(
