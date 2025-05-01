@@ -1,5 +1,6 @@
 import 'package:fake_mind/chat/presentation/chat_bubble.dart';
 import 'package:fake_mind/chat/presentation/chat_provider.dart';
+import 'package:fake_mind/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -69,9 +70,9 @@ class _ChatPageState extends State<ChatPage> {
                     padding: const EdgeInsets.all(16.0),
                     child: Center(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 180.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 40.0),
                         child: LinearProgressIndicator(
-                          color: Colors.white,
+                          color: kChatBubbleUser,
                           backgroundColor: Colors.grey[600],
                         ),
                       ),
