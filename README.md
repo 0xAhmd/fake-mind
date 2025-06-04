@@ -33,10 +33,10 @@
 ### Installation
 
 1. **Clone the repository**
-   ```bash
+```bash
    git clone https://github.com/0xAhmd/fake-mind.git
-   cd fake-mind
-````
+   cd fake-mind   
+```
 
 2. **Install dependencies**
 
@@ -66,7 +66,7 @@
 * **Dart** – programming language
 * **Gemini API** – AI responses
 * **Markdown** – output formatting
-* **Provider/BLoC/Riverpod** – (depends on what you're using for state management)
+* **Provider**
 
 ---
 
