@@ -40,7 +40,7 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
-        backgroundColor: kscaffoldBackgroundColor,
+        backgroundColor: kScaffoldBackgroundColor,
         appBar: AppBar(
           backgroundColor: Colors.black,
           elevation: 0,

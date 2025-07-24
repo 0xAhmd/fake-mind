@@ -61,7 +61,7 @@ class ChatListPage extends StatelessWidget {
           ),
         ],
       ),
-      backgroundColor: kscaffoldBackgroundColor,
+      backgroundColor: kScaffoldBackgroundColor,
       body: Consumer<ChatProvider>(
         builder: (context, chatProvider, child) {
           if (chatProvider.chatHistory.isEmpty) {

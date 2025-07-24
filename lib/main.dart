@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
       title: 'FakeMind Chat',
       theme: ThemeData(
         fontFamily: GoogleFonts.lato().fontFamily,
-        scaffoldBackgroundColor: kscaffoldBackgroundColor,
+        scaffoldBackgroundColor: kScaffoldBackgroundColor,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
