@@ -338,6 +338,10 @@ class ChatListPage extends StatelessWidget {
       text: chat.title,
     );
 
+    debugPrint(
+      '🔄 Showing rename dialog for chat: ${chat.id} - "${chat.title}"',
+    );
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -370,12 +374,30 @@ class ChatListPage extends StatelessWidget {
                 maxLength: 50,
                 textCapitalization: TextCapitalization.words,
                 autofocus: true,
+                onSubmitted: (value) {
+                  // Allow submit on Enter key
+                  final newName = value.trim();
+                  if (newName.isNotEmpty && newName != chat.title) {
+                    debugPrint(
+                      '🔄 Submitting rename via Enter key: "$newName"',
+                    );
+                    context.read<ChatCubit>().renameChat(chat.id, newName);
+                    Navigator.of(context).pop();
+                  } else {
+                    debugPrint(
+                      '❌ Invalid rename attempt via Enter: "$newName"',
+                    );
+                  }
+                },
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                debugPrint('❌ Rename cancelled by user');
+                Navigator.of(context).pop();
+              },
               child: Text(
                 'Cancel',
                 style: GoogleFonts.inter(color: Colors.grey[400]),
@@ -384,10 +406,33 @@ class ChatListPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 final newName = nameController.text.trim();
+                debugPrint('🔄 Rename button pressed with name: "$newName"');
+                debugPrint('🔍 Original name: "${chat.title}"');
+                debugPrint('🔍 Names equal: ${newName == chat.title}');
+                debugPrint('🔍 Name empty: ${newName.isEmpty}');
+
                 if (newName.isNotEmpty && newName != chat.title) {
+                  debugPrint('✅ Proceeding with rename');
                   context.read<ChatCubit>().renameChat(chat.id, newName);
+                  Navigator.of(context).pop();
+                } else {
+                  debugPrint('❌ Rename conditions not met');
+                  if (newName.isEmpty) {
+                    // Show error message for empty name
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Chat name cannot be empty',
+                          style: GoogleFonts.inter(color: Colors.white),
+                        ),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  } else if (newName == chat.title) {
+                    // Just close dialog if name hasn't changed
+                    Navigator.of(context).pop();
+                  }
                 }
-                Navigator.of(context).pop();
               },
               style: ElevatedButton.styleFrom(backgroundColor: kChatBubbleUser),
               child: Text(

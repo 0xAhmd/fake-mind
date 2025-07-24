@@ -184,16 +184,7 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
-  List<ChatModel> _filterChats(List<ChatModel> chats, String query) {
-    return chats
-        .where(
-          (chat) =>
-              chat.title.toLowerCase().contains(query.toLowerCase()) ||
-              (chat.lastMessage?.toLowerCase().contains(query.toLowerCase()) ??
-                  false),
-        )
-        .toList();
-  }
+
 
   Future<List<MessageModel>> searchMessages(
     String query, {
@@ -304,16 +295,29 @@ class ChatCubit extends Cubit<ChatState> {
   // Rename an existing chat
   Future<void> renameChat(String chatId, String newName) async {
     try {
-      if (state is! ChatLoaded) return;
+      debugPrint('🔄 Starting chat rename: $chatId -> "$newName"');
+
+      if (state is! ChatLoaded) {
+        debugPrint('❌ Cannot rename chat: Invalid state ${state.runtimeType}');
+        return;
+      }
 
       final currentState = state as ChatLoaded;
       final trimmedName = newName.trim();
 
-      if (trimmedName.isEmpty) return;
+      if (trimmedName.isEmpty) {
+        debugPrint('❌ Cannot rename chat: Empty name provided');
+        return;
+      }
 
       // Get the chat from database
       final chat = await _databaseHelper.getChat(chatId);
-      if (chat == null) return;
+      if (chat == null) {
+        debugPrint('❌ Cannot rename chat: Chat not found with ID $chatId');
+        return;
+      }
+
+      debugPrint('✅ Found chat to rename: "${chat.title}" -> "$trimmedName"');
 
       // Create updated chat with new name
       final updatedChat = chat.copyWith(
@@ -321,23 +325,34 @@ class ChatCubit extends Cubit<ChatState> {
         updatedAt: DateTime.now(),
       );
 
+      debugPrint('🔄 Updating chat in local database...');
+
       // Update in local database
       await _databaseHelper.updateChat(updatedChat);
+
+      debugPrint('✅ Local database updated successfully');
 
       // Sync to Firebase if online
       if (currentState.isOnline) {
         try {
+          debugPrint('🔄 Syncing to Firebase...');
           await _firebaseService.syncChat(updatedChat);
+          debugPrint('✅ Firebase sync successful');
         } catch (e) {
-          debugPrint('Failed to sync renamed chat to Firebase: $e');
+          debugPrint('❌ Failed to sync renamed chat to Firebase: $e');
+          // Continue with local update even if Firebase fails
         }
+      } else {
+        debugPrint('📴 Offline mode - skipping Firebase sync');
       }
 
       // Update in chat history
       final updatedHistory =
-          currentState.chatHistory
-              .map((c) => c.id == chatId ? updatedChat : c)
-              .toList();
+          currentState.chatHistory.map((c) {
+            return c.id == chatId ? updatedChat : c;
+          }).toList();
+
+      debugPrint('🔄 Updated ${updatedHistory.length} chats in history');
 
       // Update current chat if it's the same
       final updatedCurrentChat =
@@ -345,25 +360,57 @@ class ChatCubit extends Cubit<ChatState> {
               ? updatedChat
               : currentState.currentChat;
 
+      if (updatedCurrentChat?.id == chatId) {
+        debugPrint('✅ Updated current chat title');
+      }
+
+      // Update filtered chats
+      final updatedFilteredChats =
+          currentState.searchQuery.isEmpty
+              ? updatedHistory
+              : _filterChats(updatedHistory, currentState.searchQuery);
+
       // Update state
       emit(
         currentState.copyWith(
           chatHistory: updatedHistory,
           currentChat: updatedCurrentChat,
-          filteredChats:
-              currentState.searchQuery.isEmpty
-                  ? updatedHistory
-                  : _filterChats(updatedHistory, currentState.searchQuery),
+          filteredChats: updatedFilteredChats,
         ),
       );
 
+      debugPrint('✅ State updated successfully');
+      debugPrint('📊 Final chat history count: ${updatedHistory.length}');
+      debugPrint(
+        '📊 Final filtered chats count: ${updatedFilteredChats.length}',
+      );
+
       await _loadStatistics();
-    } catch (e) {
+      debugPrint('✅ Chat rename completed successfully');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error renaming chat: $e');
+      debugPrint('Stack trace: $stackTrace');
       emit(ChatError(error: 'Failed to rename chat: $e'));
-      debugPrint('Error renaming chat: $e');
     }
   }
 
+List<ChatModel> _filterChats(List<ChatModel> chats, String query) {
+  debugPrint('🔍 Filtering ${chats.length} chats with query: "$query"');
+  
+  if (query.isEmpty) {
+    debugPrint('✅ Empty query - returning all chats');
+    return chats;
+  }
+  
+  final filtered = chats.where((chat) {
+    final titleMatch = chat.title.toLowerCase().contains(query.toLowerCase());
+    final messageMatch = chat.lastMessage?.toLowerCase().contains(query.toLowerCase()) ?? false;
+    return titleMatch || messageMatch;
+  }).toList();
+  
+  debugPrint('✅ Filtered to ${filtered.length} chats');
+  return filtered;
+}
   // Set current chat and load messages
   Future<void> _setCurrentChat(String chatId) async {
     try {

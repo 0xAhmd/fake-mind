@@ -172,15 +172,33 @@ class DatabaseHelper {
 
   Future<void> updateChat(ChatModel chat) async {
     try {
+      debugPrint('🔄 DatabaseHelper.updateChat called for: ${chat.id}');
+      debugPrint('📄 Chat data: ${chat.toMap()}');
+
       Database db = await database;
-      await db.update(
+
+      final result = await db.update(
         tableChats,
         chat.toMap(),
         where: '$columnChatId = ?',
         whereArgs: [chat.id],
       );
-    } catch (e) {
-      debugPrint('Error updating chat: $e');
+
+      debugPrint('✅ Database update result: $result rows affected');
+
+      if (result == 0) {
+        debugPrint('⚠️ No rows were updated - chat might not exist');
+        // Optionally insert if update failed
+        await db.insert(
+          tableChats,
+          chat.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        debugPrint('✅ Chat inserted instead of updated');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating chat in database: $e');
+      debugPrint('Stack trace: $stackTrace');
       rethrow;
     }
   }

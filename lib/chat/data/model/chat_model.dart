@@ -74,3 +74,23 @@ class ChatModel {
     return 'ChatModel{id: $id, title: $title, isPinned: $isPinned}';
   }
 }
+
+extension ChatModelExtension on ChatModel {
+  ChatModel copyWith({
+    String? id,
+    String? title,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? isPinned,
+    String? lastMessage,
+  }) {
+    return ChatModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isPinned: isPinned ?? this.isPinned,
+      lastMessage: lastMessage ?? this.lastMessage,
+    );
+  }
+}
