@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
 
 class ConnectivityService {
   final Connectivity _connectivity = Connectivity();
@@ -24,7 +25,7 @@ class ConnectivityService {
       final result = await _connectivity.checkConnectivity();
       await _updateConnectionStatus(result);
     } catch (e) {
-      print('Could not check connectivity status: $e');
+      debugPrint('Could not check connectivity status: $e');
     }
   }
 
@@ -34,7 +35,7 @@ class ConnectivityService {
 
     if (wasOnline != _isOnline) {
       _connectivityController.add(_isOnline);
-      print('Connectivity changed: ${_isOnline ? "Online" : "Offline"}');
+      debugPrint('Connectivity changed: ${_isOnline ? "Online" : "Offline"}');
     }
   }
 

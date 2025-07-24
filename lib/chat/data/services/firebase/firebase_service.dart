@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_mind/chat/data/model/chat_model.dart';
 import 'package:fake_mind/chat/data/model/message_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -14,7 +15,7 @@ class FirebaseService {
     try {
       return await _auth.signInAnonymously();
     } catch (e) {
-      print('Error signing in anonymously: $e');
+      debugPrint('Error signing in anonymously: $e');
       return null;
     }
   }
@@ -35,7 +36,7 @@ class FirebaseService {
           .doc(chat.id)
           .set(chat.toMap(), SetOptions(merge: true));
     } catch (e) {
-      print('Error syncing chat: $e');
+      debugPrint('Error syncing chat: $e');
       throw Exception('Failed to sync chat');
     }
   }
@@ -56,7 +57,7 @@ class FirebaseService {
           .map((doc) => ChatModel.fromMap(doc.data() as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error getting chats from Firestore: $e');
+      debugPrint('Error getting chats from Firestore: $e');
       return [];
     }
   }
@@ -87,7 +88,7 @@ class FirebaseService {
           .doc(chatId)
           .delete();
     } catch (e) {
-      print('Error deleting chat from Firestore: $e');
+      debugPrint('Error deleting chat from Firestore: $e');
       throw Exception('Failed to delete chat');
     }
   }
@@ -106,7 +107,7 @@ class FirebaseService {
           .doc(message.id)
           .set(message.toMap(), SetOptions(merge: true));
     } catch (e) {
-      print('Error syncing message: $e');
+      debugPrint('Error syncing message: $e');
       throw Exception('Failed to sync message');
     }
   }
@@ -131,7 +132,7 @@ class FirebaseService {
           )
           .toList();
     } catch (e) {
-      print('Error getting messages from Firestore: $e');
+      debugPrint('Error getting messages from Firestore: $e');
       return [];
     }
   }
@@ -154,7 +155,7 @@ class FirebaseService {
         await syncMessage(message);
       }
     } catch (e) {
-      print('Error syncing unsynced data: $e');
+      debugPrint('Error syncing unsynced data: $e');
       throw Exception('Failed to sync data');
     }
   }

@@ -1,5 +1,7 @@
 import 'package:uuid/uuid.dart';
 
+enum MessageType { text, image, file, system }
+
 class MessageModel {
   final String id;
   final String chatId;
@@ -7,6 +9,8 @@ class MessageModel {
   final bool isUser;
   final DateTime timestamp;
   final bool synced;
+  final int retryCount;
+  final MessageType messageType;
 
   MessageModel({
     String? id,
@@ -15,6 +19,8 @@ class MessageModel {
     required this.isUser,
     DateTime? timestamp,
     this.synced = false,
+    this.retryCount = 0,
+    this.messageType = MessageType.text,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now();
 
@@ -26,6 +32,8 @@ class MessageModel {
       'is_user': isUser ? 1 : 0,
       'timestamp': timestamp.toIso8601String(),
       'synced': synced ? 1 : 0,
+      'retry_count': retryCount,
+      'message_type': messageType.name,
     };
   }
 
@@ -37,10 +45,20 @@ class MessageModel {
       isUser: map['is_user'] == 1,
       timestamp: DateTime.parse(map['timestamp']),
       synced: map['synced'] == 1,
+      retryCount: map['retry_count'] ?? 0,
+      messageType: MessageType.values.firstWhere(
+        (type) => type.name == (map['message_type'] ?? 'text'),
+        orElse: () => MessageType.text,
+      ),
     );
   }
 
-  MessageModel copyWith({String? content, bool? synced}) {
+  MessageModel copyWith({
+    String? content,
+    bool? synced,
+    int? retryCount,
+    MessageType? messageType,
+  }) {
     return MessageModel(
       id: id,
       chatId: chatId,
@@ -48,6 +66,27 @@ class MessageModel {
       isUser: isUser,
       timestamp: timestamp,
       synced: synced ?? this.synced,
+      retryCount: retryCount ?? this.retryCount,
+      messageType: messageType ?? this.messageType,
     );
+  }
+
+  bool get isFailed => !synced && retryCount > 0;
+  bool get isRetrying => retryCount > 0 && retryCount < 3;
+  bool get hasMaxRetries => retryCount >= 3;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MessageModel &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() {
+    return 'MessageModel{id: $id, isUser: $isUser, synced: $synced, retryCount: $retryCount}';
   }
 }

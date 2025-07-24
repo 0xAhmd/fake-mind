@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:fake_mind/chat/data/db_helper.dart';
 import 'package:fake_mind/chat/data/services/firebase/firebase_service.dart';
 import 'package:fake_mind/chat/data/services/firebase/google_generative_api_service.dart';
@@ -22,53 +23,85 @@ class ChatProvider with ChangeNotifier {
   final List<MessageModel> _messages = [];
   bool _isLoading = false;
   bool _isOnline = false;
+  bool _isRetrying = false;
 
   // Chat history
   final List<ChatModel> _chatHistory = [];
 
+  // Search
+  String _searchQuery = '';
+  List<ChatModel> _filteredChats = [];
+
+  // Statistics
+  Map<String, dynamic> _statistics = {};
+
   // Stream subscriptions
   StreamSubscription<bool>? _connectivitySubscription;
   StreamSubscription<List<MessageModel>>? _messageStreamSubscription;
+  Timer? _syncTimer;
+  Timer? _retryTimer;
 
   // GETTERS
   ChatModel? get currentChat => _currentChat;
   List<MessageModel> get messages => _messages;
   bool get isLoading => _isLoading;
   bool get isOnline => _isOnline;
-  List<ChatModel> get chatHistory => _chatHistory;
+  bool get isRetrying => _isRetrying;
+  List<ChatModel> get chatHistory =>
+      _searchQuery.isEmpty ? _chatHistory : _filteredChats;
+  String get searchQuery => _searchQuery;
+  Map<String, dynamic> get statistics => _statistics;
 
   ChatProvider() {
     _initializeProvider();
   }
 
   Future<void> _initializeProvider() async {
-    // Initialize Firebase Auth
-    await _firebaseService.signInAnonymously();
+    try {
+      // Initialize Firebase Auth
+      await _firebaseService.signInAnonymously();
 
-    // Initialize connectivity monitoring
-    _connectivitySubscription = _connectivityService.connectivityStream.listen(
-      _onConnectivityChanged,
-    );
-    _isOnline = await _connectivityService.hasConnection();
+      // Initialize connectivity monitoring
+      _connectivitySubscription = _connectivityService.connectivityStream
+          .listen(_onConnectivityChanged);
+      _isOnline = await _connectivityService.hasConnection();
 
-    // Load chat history
-    await _loadChatHistory();
+      // Load chat history and statistics
+      await _loadChatHistory();
+      await _loadStatistics();
 
-    // Sync data if online
-    if (_isOnline) {
-      await _syncDataWithFirebase();
+      // Sync data if online
+      if (_isOnline) {
+        await _syncDataWithFirebase();
+      }
+
+      // Set up periodic sync
+      _startPeriodicSync();
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error initializing ChatProvider: $e');
     }
-
-    notifyListeners();
   }
 
   void _onConnectivityChanged(bool isOnline) async {
+    final wasOffline = !_isOnline;
     _isOnline = isOnline;
     notifyListeners();
 
-    if (isOnline) {
+    if (isOnline && wasOffline) {
+      // Just came back online
       await _syncDataWithFirebase();
+      await retryFailedMessages();
     }
+  }
+
+  void _startPeriodicSync() {
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+      if (_isOnline) {
+        _syncDataWithFirebase();
+      }
+    });
   }
 
   Future<void> _loadChatHistory() async {
@@ -76,9 +109,19 @@ class ChatProvider with ChangeNotifier {
       final localChats = await _databaseHelper.getAllChats();
       _chatHistory.clear();
       _chatHistory.addAll(localChats);
+      _updateFilteredChats();
       notifyListeners();
     } catch (e) {
-      print('Error loading chat history: $e');
+      debugPrint('Error loading chat history: $e');
+    }
+  }
+
+  Future<void> _loadStatistics() async {
+    try {
+      _statistics = await _databaseHelper.getChatStatistics();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading statistics: $e');
     }
   }
 
@@ -89,8 +132,19 @@ class ChatProvider with ChangeNotifier {
       // Get unsynced messages
       final unsyncedMessages = await _databaseHelper.getUnsyncedMessages();
 
+      // Get unsynced chats (those created offline)
+      final unsyncedChats =
+          _chatHistory
+              .where(
+                (chat) =>
+                    !unsyncedMessages.any(
+                      (msg) => msg.chatId == chat.id && msg.synced,
+                    ),
+              )
+              .toList();
+
       // Sync unsynced data
-      await _firebaseService.syncUnsyncedData(_chatHistory, unsyncedMessages);
+      await _firebaseService.syncUnsyncedData(unsyncedChats, unsyncedMessages);
 
       // Mark messages as synced
       for (final message in unsyncedMessages) {
@@ -103,13 +157,50 @@ class ChatProvider with ChangeNotifier {
         final existingChat = await _databaseHelper.getChat(chat.id);
         if (existingChat == null) {
           await _databaseHelper.insertChat(chat);
+        } else if (chat.updatedAt.isAfter(existingChat.updatedAt)) {
+          await _databaseHelper.updateChat(chat);
         }
       }
 
       await _loadChatHistory();
+      await _loadStatistics();
     } catch (e) {
-      print('Error syncing with Firebase: $e');
+      debugPrint('Error syncing with Firebase: $e');
     }
+  }
+
+  // Search functionality
+  void searchChats(String query) {
+    _searchQuery = query;
+    _updateFilteredChats();
+    notifyListeners();
+  }
+
+  void _updateFilteredChats() {
+    if (_searchQuery.isEmpty) {
+      _filteredChats.clear();
+    } else {
+      _filteredChats =
+          _chatHistory
+              .where(
+                (chat) =>
+                    chat.title.toLowerCase().contains(
+                      _searchQuery.toLowerCase(),
+                    ) ||
+                    (chat.lastMessage?.toLowerCase().contains(
+                          _searchQuery.toLowerCase(),
+                        ) ??
+                        false),
+              )
+              .toList();
+    }
+  }
+
+  Future<List<MessageModel>> searchMessages(
+    String query, {
+    String? chatId,
+  }) async {
+    return await _databaseHelper.searchMessages(query, chatId: chatId);
   }
 
   // Create a new chat
@@ -127,7 +218,11 @@ class ChatProvider with ChangeNotifier {
 
       // Sync to Firebase if online
       if (_isOnline) {
-        await _firebaseService.syncChat(newChat);
+        try {
+          await _firebaseService.syncChat(newChat);
+        } catch (e) {
+          debugPrint('Failed to sync new chat to Firebase: $e');
+        }
       }
 
       // Set as current chat
@@ -135,14 +230,18 @@ class ChatProvider with ChangeNotifier {
 
       // Add to history
       _chatHistory.insert(0, newChat);
+      _updateFilteredChats();
       notifyListeners();
 
       // Send first message if provided
       if (firstMessage != null) {
         await sendMessage(firstMessage);
       }
+
+      await _loadStatistics();
     } catch (e) {
-      print('Error creating new chat: $e');
+      debugPrint('Error creating new chat: $e');
+      throw Exception('Failed to create new chat');
     }
   }
 
@@ -181,7 +280,7 @@ class ChatProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print('Error setting current chat: $e');
+      debugPrint('Error setting current chat: $e');
     }
   }
 
@@ -190,7 +289,38 @@ class ChatProvider with ChangeNotifier {
     await _setCurrentChat(chatId);
   }
 
-  // Send a message
+  // Pin/Unpin chat
+  Future<void> toggleChatPin(String chatId) async {
+    try {
+      final chat = await _databaseHelper.getChat(chatId);
+      if (chat != null) {
+        final updatedChat = chat.copyWith(isPinned: !chat.isPinned);
+        await _databaseHelper.updateChat(updatedChat);
+
+        if (_isOnline) {
+          await _firebaseService.syncChat(updatedChat);
+        }
+
+        // Update in history
+        final index = _chatHistory.indexWhere((c) => c.id == chatId);
+        if (index != -1) {
+          _chatHistory[index] = updatedChat;
+        }
+
+        // Update current chat if it's the same
+        if (_currentChat?.id == chatId) {
+          _currentChat = updatedChat;
+        }
+
+        await _loadChatHistory(); // Reload to update sorting
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error toggling chat pin: $e');
+    }
+  }
+
+  // Send a message with enhanced retry logic
   Future<void> sendMessage(String content) async {
     if (content.trim().isEmpty) return;
 
@@ -213,8 +343,12 @@ class ChatProvider with ChangeNotifier {
 
     // Sync to Firebase if online
     if (_isOnline) {
-      await _firebaseService.syncMessage(userMessage);
-      await _databaseHelper.markMessageAsSynced(userMessage.id);
+      try {
+        await _firebaseService.syncMessage(userMessage);
+        await _databaseHelper.markMessageAsSynced(userMessage.id);
+      } catch (e) {
+        debugPrint('Failed to sync user message: $e');
+      }
     }
 
     notifyListeners();
@@ -227,8 +361,8 @@ class ChatProvider with ChangeNotifier {
       String response;
 
       if (_isOnline) {
-        // Use API service when online
-        response = await _apiService.sendMessage(content);
+        // Use API service when online with exponential backoff
+        response = await _sendMessageWithRetry(content);
       } else {
         // Provide offline response
         response =
@@ -247,8 +381,12 @@ class ChatProvider with ChangeNotifier {
 
       // Sync to Firebase if online
       if (_isOnline) {
-        await _firebaseService.syncMessage(responseMessage);
-        await _databaseHelper.markMessageAsSynced(responseMessage.id);
+        try {
+          await _firebaseService.syncMessage(responseMessage);
+          await _databaseHelper.markMessageAsSynced(responseMessage.id);
+        } catch (e) {
+          debugPrint('Failed to sync response message: $e');
+        }
       }
 
       // Update chat title if it's the first exchange
@@ -261,7 +399,11 @@ class ChatProvider with ChangeNotifier {
         await _databaseHelper.updateChat(updatedChat);
 
         if (_isOnline) {
-          await _firebaseService.syncChat(updatedChat);
+          try {
+            await _firebaseService.syncChat(updatedChat);
+          } catch (e) {
+            debugPrint('Failed to sync updated chat: $e');
+          }
         }
 
         // Update in history
@@ -275,15 +417,95 @@ class ChatProvider with ChangeNotifier {
     } catch (e) {
       final errorMessage = MessageModel(
         chatId: _currentChat!.id,
-        content: 'Sorry, something went wrong: $e',
+        content: 'Sorry, something went wrong. Please try again later.',
         isUser: false,
         synced: false,
       );
       _messages.add(errorMessage);
       await _databaseHelper.insertMessage(errorMessage);
+      debugPrint('Error sending message: $e');
     }
 
     _isLoading = false;
+    await _loadStatistics();
+    notifyListeners();
+  }
+
+  Future<String> _sendMessageWithRetry(
+    String content, {
+    int attempt = 1,
+  }) async {
+    const maxAttempts = 3;
+    const baseDelay = Duration(seconds: 1);
+
+    try {
+      return await _apiService.sendMessage(content);
+    } catch (e) {
+      if (attempt < maxAttempts) {
+        final delay = Duration(
+          seconds: baseDelay.inSeconds * pow(2, attempt - 1).toInt(),
+        );
+        await Future.delayed(delay);
+        return await _sendMessageWithRetry(content, attempt: attempt + 1);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  // Enhanced retry failed messages
+  Future<void> retryFailedMessages() async {
+    if (!_isOnline || _isRetrying) return;
+
+    _isRetrying = true;
+    notifyListeners();
+
+    try {
+      final failedMessages = await _databaseHelper.getFailedMessages();
+
+      for (final message in failedMessages) {
+        if (message.hasMaxRetries) continue;
+
+        try {
+          // Find the user message that this bot message was responding to
+          final userMessage =
+              _messages
+                  .where(
+                    (m) =>
+                        m.chatId == message.chatId &&
+                        m.isUser &&
+                        m.timestamp.isBefore(message.timestamp),
+                  )
+                  .lastOrNull;
+
+          if (userMessage != null) {
+            final response = await _sendMessageWithRetry(userMessage.content);
+
+            final updatedMessage = message.copyWith(
+              content: response,
+              synced: true,
+            );
+
+            final index = _messages.indexWhere((m) => m.id == message.id);
+            if (index != -1) {
+              _messages[index] = updatedMessage;
+            }
+
+            await _databaseHelper.insertMessage(updatedMessage);
+            await _firebaseService.syncMessage(updatedMessage);
+            await _databaseHelper.markMessageAsSynced(updatedMessage.id);
+          }
+        } catch (e) {
+          await _databaseHelper.incrementMessageRetryCount(message.id);
+          debugPrint('Failed to retry message ${message.id}: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error retrying failed messages: $e');
+    }
+
+    _isRetrying = false;
+    await _loadStatistics();
     notifyListeners();
   }
 
@@ -293,10 +515,15 @@ class ChatProvider with ChangeNotifier {
       await _databaseHelper.deleteChat(chatId);
 
       if (_isOnline) {
-        await _firebaseService.deleteChat(chatId);
+        try {
+          await _firebaseService.deleteChat(chatId);
+        } catch (e) {
+          debugPrint('Failed to delete chat from Firebase: $e');
+        }
       }
 
       _chatHistory.removeWhere((chat) => chat.id == chatId);
+      _updateFilteredChats();
 
       // If deleting current chat, clear current chat
       if (_currentChat?.id == chatId) {
@@ -305,61 +532,111 @@ class ChatProvider with ChangeNotifier {
         _messageStreamSubscription?.cancel();
       }
 
+      await _loadStatistics();
       notifyListeners();
     } catch (e) {
-      print('Error deleting chat: $e');
+      debugPrint('Error deleting chat: $e');
+      throw Exception('Failed to delete chat');
     }
+  }
+
+  // Delete a specific message
+  Future<void> deleteMessage(String messageId) async {
+    try {
+      await _databaseHelper.deleteMessage(messageId);
+
+      _messages.removeWhere((msg) => msg.id == messageId);
+
+      if (_isOnline) {
+        // Note: Implement Firebase message deletion if needed
+      }
+
+      await _loadStatistics();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error deleting message: $e');
+    }
+  }
+
+  // Export chat functionality
+  String exportChatAsText(String chatId) {
+    final chatMessages = _messages.where((m) => m.chatId == chatId).toList();
+    final chat = _chatHistory.firstWhere((c) => c.id == chatId);
+
+    final buffer = StringBuffer();
+    buffer.writeln('Chat Export: ${chat.title}');
+    buffer.writeln('Created: ${chat.createdAt}');
+    buffer.writeln('Last Updated: ${chat.updatedAt}');
+    buffer.writeln('${'=' * 50}');
+
+    for (final message in chatMessages) {
+      final sender = message.isUser ? 'You' : 'AI';
+      buffer.writeln('[$sender] ${message.timestamp}');
+      buffer.writeln(message.content);
+      buffer.writeln();
+    }
+
+    return buffer.toString();
+  }
+
+  // Clear all data
+  Future<void> clearAllData() async {
+    try {
+      await _databaseHelper.clearDatabase();
+      _chatHistory.clear();
+      _filteredChats.clear();
+      _messages.clear();
+      _currentChat = null;
+      _statistics.clear();
+      _searchQuery = '';
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error clearing all data: $e');
+      throw Exception('Failed to clear data');
+    }
+  }
+
+  // Database maintenance
+  Future<void> cleanupOldMessages({int daysOld = 30}) async {
+    try {
+      await _databaseHelper.deleteOldMessages(daysOld: daysOld);
+      await _loadStatistics();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error cleaning up old messages: $e');
+    }
+  }
+
+  Future<int> getDatabaseSize() async {
+    return await _databaseHelper.getDatabaseSize();
   }
 
   // Generate chat title from first message
   String _generateChatTitle(String firstMessage) {
-    if (firstMessage.length <= 30) {
-      return firstMessage;
-    }
-    return '${firstMessage.substring(0, 30)}...';
-  }
+    // Remove extra whitespace and newlines
+    final cleanMessage = firstMessage.trim().replaceAll(RegExp(r'\s+'), ' ');
 
-  // Retry failed messages when back online
-  Future<void> retryFailedMessages() async {
-    if (!_isOnline) return;
-
-    final unsyncedMessages =
-        _messages.where((msg) => !msg.synced && !msg.isUser).toList();
-
-    for (final message in unsyncedMessages) {
-      try {
-        // Retry API call for bot messages that failed
-        final response = await _apiService.sendMessage(
-          _messages
-              .where((m) => m.timestamp.isBefore(message.timestamp) && m.isUser)
-              .last
-              .content,
-        );
-
-        final updatedMessage = message.copyWith(
-          content: response,
-          synced: true,
-        );
-        final index = _messages.indexWhere((m) => m.id == message.id);
-        if (index != -1) {
-          _messages[index] = updatedMessage;
-        }
-
-        await _databaseHelper.insertMessage(updatedMessage);
-        await _firebaseService.syncMessage(updatedMessage);
-        await _databaseHelper.markMessageAsSynced(updatedMessage.id);
-      } catch (e) {
-        print('Error retrying message: $e');
-      }
+    if (cleanMessage.length <= 30) {
+      return cleanMessage;
     }
 
-    notifyListeners();
+    // Try to cut at a word boundary
+    final words = cleanMessage.substring(0, 30).split(' ');
+    if (words.length > 1) {
+      words.removeLast(); // Remove potentially cut word
+      return '${words.join(' ')}...';
+    }
+
+    return '${cleanMessage.substring(0, 30)}...';
   }
 
   @override
   void dispose() {
     _connectivitySubscription?.cancel();
     _messageStreamSubscription?.cancel();
+    _syncTimer?.cancel();
+    _retryTimer?.cancel();
     _connectivityService.dispose();
     super.dispose();
   }
