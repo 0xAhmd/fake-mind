@@ -9,45 +9,114 @@ import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ChatBubble extends StatelessWidget {
-  const ChatBubble({super.key, required this.message});
+  const ChatBubble({
+    super.key,
+    required this.message,
+    this.showSyncStatus = false,
+  });
 
   final MessageModel message;
+  final bool showSyncStatus;
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.8,
+        ),
         padding: const EdgeInsets.symmetric(vertical: 13.0, horizontal: 17.0),
         margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
         decoration: BoxDecoration(
           color: message.isUser ? kChatBubbleUser : kChatBubbleBot,
           borderRadius: BorderRadius.circular(16.0),
+          border:
+              showSyncStatus && !message.synced
+                  ? Border.all(color: Colors.orange.withOpacity(0.5), width: 1)
+                  : null,
         ),
-        child: MarkdownBody(
-          data: message.content,
-          selectable: true,
-          builders: {
-            'code': CodeElementBuilder(),
-          },
-          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-            p: TextStyle(
-              fontSize: 16.0,
-              color: Colors.white,
-              fontFamily: GoogleFonts.inter().fontFamily,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Message content
+            MarkdownBody(
+              data: message.content,
+              selectable: true,
+              builders: {'code': CodeElementBuilder()},
+              styleSheet: MarkdownStyleSheet.fromTheme(
+                Theme.of(context),
+              ).copyWith(
+                p: TextStyle(
+                  fontSize: 16.0,
+                  color: Colors.white,
+                  fontFamily: GoogleFonts.inter().fontFamily,
+                ),
+                strong: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: GoogleFonts.inter().fontFamily,
+                ),
+                code:
+                    const TextStyle(), // disable default style, we'll replace it
+                codeblockPadding: const EdgeInsets.all(0),
+                codeblockDecoration: const BoxDecoration(),
+              ),
             ),
-            strong: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              fontFamily: GoogleFonts.inter().fontFamily,
+
+            // Timestamp and sync status
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _formatTime(message.timestamp),
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 11,
+                  ),
+                ),
+
+                if (showSyncStatus) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    message.synced ? Icons.cloud_done : Icons.cloud_off,
+                    size: 12,
+                    color:
+                        message.synced
+                            ? Colors.green.withOpacity(0.7)
+                            : Colors.orange.withOpacity(0.7),
+                  ),
+                ],
+
+                if (message.isUser) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    message.synced ? Icons.done_all : Icons.done,
+                    size: 12,
+                    color:
+                        message.synced
+                            ? Colors.blue.withOpacity(0.7)
+                            : Colors.white.withOpacity(0.5),
+                  ),
+                ],
+              ],
             ),
-            code: const TextStyle(), // disable default style, we'll replace it
-            codeblockPadding: const EdgeInsets.all(0),
-            codeblockDecoration: const BoxDecoration(),
-          ),
+          ],
         ),
       ),
     );
+  }
+
+  String _formatTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays > 0) {
+      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+    } else {
+      return '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    }
   }
 }
 
