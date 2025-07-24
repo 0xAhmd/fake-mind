@@ -1,5 +1,6 @@
 // lib/main.dart
 import 'package:fake_mind/chat/presentation/cubit/chat_cubit.dart';
+import 'package:fake_mind/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,18 +13,23 @@ import 'constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   // Load the .env file
   await dotenv.load(fileName: ".env");
-
   // Initialize Firebase
   await Firebase.initializeApp();
-
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
   );
 
-  runApp(const MyApp());
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('✅ Firebase initialized successfully');
+  } catch (e) {
+    debugPrint('❌ Firebase initialization failed: $e');
+  }
+  runApp( const MyApp());
 }
 
 class MyApp extends StatelessWidget {
