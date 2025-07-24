@@ -1,12 +1,13 @@
+// lib/main.dart
+import 'package:fake_mind/chat/presentation/cubit/chat_cubit.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'chat/presentation/chat_list_page.dart';
-import 'chat/presentation/chat_provider.dart';
 import 'constants.dart';
 
 void main() async {
@@ -22,12 +23,7 @@ void main() async {
     const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
   );
 
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => ChatProvider(),
-      child: const MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -35,19 +31,22 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'FakeMind Chat',
-      theme: ThemeData(
-        fontFamily: GoogleFonts.lato().fontFamily,
-        scaffoldBackgroundColor: kScaffoldBackgroundColor,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          elevation: 0,
+    return BlocProvider(
+      create: (context) => ChatCubit(),
+      child: MaterialApp(
+        title: 'FakeMind Chat',
+        theme: ThemeData(
+          fontFamily: GoogleFonts.lato().fontFamily,
+          scaffoldBackgroundColor: kScaffoldBackgroundColor,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
         ),
+        debugShowCheckedModeBanner: false,
+        home: const ChatListPage(),
       ),
-      debugShowCheckedModeBanner: false,
-      home: const ChatListPage(),
     );
   }
 }

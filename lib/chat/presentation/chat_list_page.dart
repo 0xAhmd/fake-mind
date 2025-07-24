@@ -1,8 +1,11 @@
+// lib/chat/presentation/chat_list_page.dart
+import 'package:fake_mind/chat/presentation/cubit/chat_cubit.dart';
+import 'package:fake_mind/chat/presentation/cubit/chat_state.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/model/chat_model.dart';
-import 'chat_provider.dart';
+
 import 'chat_page.dart';
 import '../../constants.dart';
 
@@ -23,71 +26,205 @@ class ChatListPage extends StatelessWidget {
         backgroundColor: Colors.black,
         elevation: 0,
         actions: [
-          Consumer<ChatProvider>(
-            builder: (context, chatProvider, child) {
-              return Row(
-                children: [
-                  // Online/Offline indicator
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          chatProvider.isOnline ? Colors.green : Colors.orange,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      chatProvider.isOnline ? 'Online' : 'Offline',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+          BlocBuilder<ChatCubit, ChatState>(
+            builder: (context, state) {
+              if (state is ChatLoaded) {
+                return Row(
+                  children: [
+                    // Online/Offline indicator
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: state.isOnline ? Colors.green : Colors.orange,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        state.isOnline ? 'Online' : 'Offline',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Retry button for offline mode
-                  if (!chatProvider.isOnline)
-                    IconButton(
-                      icon: const Icon(Icons.refresh, color: Colors.white),
-                      onPressed: () => chatProvider.retryFailedMessages(),
-                    ),
-                  const SizedBox(width: 8),
-                ],
-              );
+                    const SizedBox(width: 8),
+                    // Retry button for offline mode
+                    if (!state.isOnline)
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.white),
+                        onPressed:
+                            () =>
+                                context.read<ChatCubit>().retryFailedMessages(),
+                      ),
+                    const SizedBox(width: 8),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
             },
           ),
         ],
       ),
       backgroundColor: kScaffoldBackgroundColor,
-      body: Consumer<ChatProvider>(
-        builder: (context, chatProvider, child) {
-          if (chatProvider.chatHistory.isEmpty) {
+      body: BlocBuilder<ChatCubit, ChatState>(
+        builder: (context, state) {
+          if (state is ChatLoaded) {
+            final chats =
+                state.searchQuery.isEmpty
+                    ? state.chatHistory
+                    : state.filteredChats;
+
+            if (chats.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline,
+                      size: 64,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      state.searchQuery.isEmpty
+                          ? 'No chats yet'
+                          : 'No chats found',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      state.searchQuery.isEmpty
+                          ? 'Start a new conversation'
+                          : 'Try a different search term',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              children: [
+                // Search bar
+                if (state.chatHistory.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TextField(
+                      onChanged:
+                          (query) =>
+                              context.read<ChatCubit>().searchChats(query),
+                      style: GoogleFonts.inter(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Search chats...',
+                        hintStyle: GoogleFonts.inter(color: Colors.grey[500]),
+                        prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
+                        suffixIcon:
+                            state.searchQuery.isNotEmpty
+                                ? IconButton(
+                                  icon: Icon(
+                                    Icons.clear,
+                                    color: Colors.grey[500],
+                                  ),
+                                  onPressed:
+                                      () => context
+                                          .read<ChatCubit>()
+                                          .searchChats(''),
+                                )
+                                : null,
+                        filled: true,
+                        fillColor: Colors.grey[900],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(25),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Chat list
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: chats.length,
+                    itemBuilder: (context, index) {
+                      final chat = chats[index];
+                      return ChatListItem(
+                        chat: chat,
+                        onTap: () {
+                          context.read<ChatCubit>().switchToChat(chat.id);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ChatPage(),
+                            ),
+                          );
+                        },
+                        onDelete: () => _showDeleteDialog(context, chat),
+                        onPin:
+                            () => context.read<ChatCubit>().toggleChatPin(
+                              chat.id,
+                            ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          }
+
+          if (state is ChatError) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 64,
-                    color: Colors.grey[600],
-                  ),
+                  Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
                   const SizedBox(height: 16),
                   Text(
-                    'No chats yet',
+                    'Error loading chats',
                     style: GoogleFonts.inter(
                       fontSize: 18,
-                      color: Colors.grey[400],
+                      color: Colors.red[400],
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start a new conversation',
+                    state.error ?? 'Unknown error',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Recreate the cubit to retry initialization
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChatListPage(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kChatBubbleUser,
+                    ),
+                    child: Text(
+                      'Retry',
+                      style: GoogleFonts.inter(color: Colors.white),
                     ),
                   ),
                 ],
@@ -95,29 +232,14 @@ class ChatListPage extends StatelessWidget {
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: chatProvider.chatHistory.length,
-            itemBuilder: (context, index) {
-              final chat = chatProvider.chatHistory[index];
-              return ChatListItem(
-                chat: chat,
-                onTap: () {
-                  chatProvider.switchToChat(chat.id);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ChatPage()),
-                  );
-                },
-                onDelete: () => _showDeleteDialog(context, chat, chatProvider),
-              );
-            },
+          return const Center(
+            child: CircularProgressIndicator(color: kChatBubbleUser),
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          context.read<ChatProvider>().createNewChat();
+          context.read<ChatCubit>().createNewChat();
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const ChatPage()),
@@ -129,11 +251,7 @@ class ChatListPage extends StatelessWidget {
     );
   }
 
-  void _showDeleteDialog(
-    BuildContext context,
-    ChatModel chat,
-    ChatProvider chatProvider,
-  ) {
+  void _showDeleteDialog(BuildContext context, ChatModel chat) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -157,7 +275,7 @@ class ChatListPage extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                chatProvider.deleteChat(chat.id);
+                context.read<ChatCubit>().deleteChat(chat.id);
                 Navigator.of(context).pop();
               },
               child: Text(
@@ -176,12 +294,14 @@ class ChatListItem extends StatelessWidget {
   final ChatModel chat;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback onPin;
 
   const ChatListItem({
     super.key,
     required this.chat,
     required this.onTap,
     required this.onDelete,
+    required this.onPin,
   });
 
   @override
@@ -191,47 +311,110 @@ class ChatListItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xff1a1a1a),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[800]!),
+        border: Border.all(
+          color:
+              chat.isPinned
+                  ? kChatBubbleUser.withOpacity(0.5)
+                  : Colors.grey[800]!,
+          width: chat.isPinned ? 2 : 1,
+        ),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: kChatBubbleUser.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: const Icon(
-            Icons.chat_bubble,
-            color: kChatBubbleUser,
-            size: 24,
-          ),
+        leading: Stack(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: kChatBubbleUser.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(
+                Icons.chat_bubble,
+                color: kChatBubbleUser,
+                size: 24,
+              ),
+            ),
+            if (chat.isPinned)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: kChatBubbleUser,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.push_pin,
+                    size: 12,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
         ),
         title: Text(
           chat.title,
           style: GoogleFonts.inter(
             color: Colors.white,
-            fontWeight: FontWeight.w500,
+            fontWeight: chat.isPinned ? FontWeight.w600 : FontWeight.w500,
             fontSize: 16,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          _formatDate(chat.updatedAt),
-          style: GoogleFonts.inter(color: Colors.grey[500], fontSize: 14),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _formatDate(chat.updatedAt),
+              style: GoogleFonts.inter(color: Colors.grey[500], fontSize: 14),
+            ),
+            if (chat.lastMessage != null)
+              Text(
+                chat.lastMessage!,
+                style: GoogleFonts.inter(color: Colors.grey[400], fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
         ),
         trailing: PopupMenuButton<String>(
           icon: Icon(Icons.more_vert, color: Colors.grey[400]),
           color: const Color(0xff2a2a2a),
           onSelected: (value) {
-            if (value == 'delete') {
-              onDelete();
+            switch (value) {
+              case 'pin':
+                onPin();
+                break;
+              case 'delete':
+                onDelete();
+                break;
             }
           },
           itemBuilder:
               (BuildContext context) => [
+                PopupMenuItem<String>(
+                  value: 'pin',
+                  child: Row(
+                    children: [
+                      Icon(
+                        chat.isPinned
+                            ? Icons.push_pin_outlined
+                            : Icons.push_pin,
+                        color: kChatBubbleUser,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        chat.isPinned ? 'Unpin' : 'Pin',
+                        style: GoogleFonts.inter(color: kChatBubbleUser),
+                      ),
+                    ],
+                  ),
+                ),
                 PopupMenuItem<String>(
                   value: 'delete',
                   child: Row(

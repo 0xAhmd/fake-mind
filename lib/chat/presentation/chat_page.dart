@@ -1,8 +1,11 @@
+// lib/chat/presentation/chat_page.dart
+import 'package:fake_mind/chat/presentation/cubit/chat_cubit.dart';
+import 'package:fake_mind/chat/presentation/cubit/chat_state.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'chat_bubble.dart';
-import 'chat_provider.dart';
+
 import 'chat_list_page.dart';
 import '../../constants.dart';
 
@@ -48,43 +51,51 @@ class _ChatPageState extends State<ChatPage> {
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          title: Consumer<ChatProvider>(
-            builder: (context, chatProvider, child) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    chatProvider.currentChat?.title ?? 'New Chat',
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+          title: BlocBuilder<ChatCubit, ChatState>(
+            builder: (context, state) {
+              if (state is ChatLoaded) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      state.currentChat?.title ?? 'New Chat',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color:
-                              chatProvider.isOnline
-                                  ? Colors.green
-                                  : Colors.orange,
-                          shape: BoxShape.circle,
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color:
+                                state.isOnline ? Colors.green : Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        chatProvider.isOnline ? 'Online' : 'Offline',
-                        style: GoogleFonts.inter(
-                          color: Colors.grey[400],
-                          fontSize: 12,
+                        const SizedBox(width: 4),
+                        Text(
+                          state.isOnline ? 'Online' : 'Offline',
+                          style: GoogleFonts.inter(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Text(
+                'Chat',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               );
             },
           ),
@@ -98,85 +109,95 @@ class _ChatPageState extends State<ChatPage> {
                 );
               },
             ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
-              color: const Color(0xff2a2a2a),
-              onSelected: (value) {
-                final chatProvider = context.read<ChatProvider>();
-                switch (value) {
-                  case 'new_chat':
-                    chatProvider.createNewChat();
-                    break;
-                  case 'retry':
-                    chatProvider.retryFailedMessages();
-                    break;
-                  case 'delete':
-                    if (chatProvider.currentChat != null) {
-                      _showDeleteCurrentChatDialog(context, chatProvider);
+            BlocBuilder<ChatCubit, ChatState>(
+              builder: (context, state) {
+                return PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  color: const Color(0xff2a2a2a),
+                  onSelected: (value) {
+                    final chatCubit = context.read<ChatCubit>();
+                    switch (value) {
+                      case 'new_chat':
+                        chatCubit.createNewChat();
+                        break;
+                      case 'retry':
+                        chatCubit.retryFailedMessages();
+                        break;
+                      case 'delete':
+                        final state = chatCubit.state;
+                        if (state is ChatLoaded && state.currentChat != null) {
+                          _showDeleteCurrentChatDialog(context, chatCubit);
+                        }
+                        break;
                     }
-                    break;
-                }
-              },
-              itemBuilder:
-                  (BuildContext context) => [
-                    PopupMenuItem<String>(
-                      value: 'new_chat',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.add, color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'New Chat',
-                            style: GoogleFonts.inter(color: Colors.white),
+                  },
+                  itemBuilder:
+                      (BuildContext context) => [
+                        PopupMenuItem<String>(
+                          value: 'new_chat',
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'New Chat',
+                                style: GoogleFonts.inter(color: Colors.white),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem<String>(
-                      value: 'retry',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.refresh,
-                            color: Colors.blue,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Retry Failed',
-                            style: GoogleFonts.inter(color: Colors.blue),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (context.read<ChatProvider>().currentChat != null)
-                      PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.delete,
-                              color: Colors.red,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Delete Chat',
-                              style: GoogleFonts.inter(color: Colors.red),
-                            ),
-                          ],
                         ),
-                      ),
-                  ],
+                        PopupMenuItem<String>(
+                          value: 'retry',
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.refresh,
+                                color: Colors.blue,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Retry Failed',
+                                style: GoogleFonts.inter(color: Colors.blue),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Only show delete option if there's a current chat
+                        if (state is ChatLoaded && state.currentChat != null)
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Delete Chat',
+                                  style: GoogleFonts.inter(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                );
+              },
             ),
           ],
         ),
         body: Column(
           children: [
             // Connection status banner
-            Consumer<ChatProvider>(
-              builder: (context, chatProvider, child) {
-                if (!chatProvider.isOnline) {
+            BlocBuilder<ChatCubit, ChatState>(
+              builder: (context, state) {
+                if (state is ChatLoaded && !state.isOnline) {
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -201,7 +222,11 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                         const Spacer(),
                         TextButton(
-                          onPressed: () => chatProvider.retryFailedMessages(),
+                          onPressed:
+                              () =>
+                                  context
+                                      .read<ChatCubit>()
+                                      .retryFailedMessages(),
                           child: Text(
                             'Retry',
                             style: GoogleFonts.inter(
@@ -223,58 +248,96 @@ class _ChatPageState extends State<ChatPage> {
 
             // Messages list
             Expanded(
-              child: Consumer<ChatProvider>(
-                builder: (context, chatProvider, child) {
-                  if (chatProvider.messages.isEmpty) {
+              child: BlocBuilder<ChatCubit, ChatState>(
+                builder: (context, state) {
+                  if (state is ChatLoaded) {
+                    if (state.messages.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: 64,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Start a conversation',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Type a message below to begin',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      controller: _scrollController,
+                      itemBuilder: (context, index) {
+                        final message = state.messages[index];
+                        return ChatBubble(
+                          message: message,
+                          showSyncStatus: !state.isOnline,
+                        );
+                      },
+                      itemCount: state.messages.length,
+                    );
+                  }
+
+                  if (state is ChatError) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.chat_bubble_outline,
+                            Icons.error_outline,
                             size: 64,
-                            color: Colors.grey[600],
+                            color: Colors.red[400],
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Start a conversation',
+                            'Error loading messages',
                             style: GoogleFonts.inter(
                               fontSize: 18,
-                              color: Colors.grey[400],
+                              color: Colors.red[400],
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Type a message below to begin',
+                            state.error ?? 'Unknown error',
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               color: Colors.grey[600],
                             ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
                     );
                   }
 
-                  return ListView.builder(
-                    controller: _scrollController,
-                    itemBuilder: (context, index) {
-                      final message = chatProvider.messages[index];
-                      return ChatBubble(
-                        message: message,
-                        showSyncStatus: !chatProvider.isOnline,
-                      );
-                    },
-                    itemCount: chatProvider.messages.length,
+                  return const Center(
+                    child: CircularProgressIndicator(color: kChatBubbleUser),
                   );
                 },
               ),
             ),
 
             // Loading indicator
-            Consumer<ChatProvider>(
-              builder: (context, chatProvider, child) {
-                if (chatProvider.isLoading) {
+            BlocBuilder<ChatCubit, ChatState>(
+              builder: (context, state) {
+                if (state is ChatLoaded && state.isLoading) {
                   return Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Center(
@@ -288,7 +351,7 @@ class _ChatPageState extends State<ChatPage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              chatProvider.isOnline
+                              state.isOnline
                                   ? 'Thinking...'
                                   : 'Saving offline...',
                               style: GoogleFonts.inter(
@@ -378,17 +441,14 @@ class _ChatPageState extends State<ChatPage> {
   void _sendMessage() {
     final content = _controller.text.trim();
     if (content.isNotEmpty) {
-      context.read<ChatProvider>().sendMessage(content);
+      context.read<ChatCubit>().sendMessage(content);
       _controller.clear();
       FocusScope.of(context).unfocus();
       _scrollToBottom();
     }
   }
 
-  void _showDeleteCurrentChatDialog(
-    BuildContext context,
-    ChatProvider chatProvider,
-  ) {
+  void _showDeleteCurrentChatDialog(BuildContext context, ChatCubit chatCubit) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -412,8 +472,9 @@ class _ChatPageState extends State<ChatPage> {
             ),
             TextButton(
               onPressed: () {
-                if (chatProvider.currentChat != null) {
-                  chatProvider.deleteChat(chatProvider.currentChat!.id);
+                final state = chatCubit.state;
+                if (state is ChatLoaded && state.currentChat != null) {
+                  chatCubit.deleteChat(state.currentChat!.id);
                 }
                 Navigator.of(context).pop();
                 Navigator.of(context).pop(); // Go back to chat list
