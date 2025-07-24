@@ -8,7 +8,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'chat/presentation/chat_list_page.dart';
+import 'chat/presentation/pages/chat_list_page.dart';
 import 'constants.dart';
 
 void main() async {
