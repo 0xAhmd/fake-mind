@@ -41,16 +41,20 @@ class ChatModel {
     );
   }
 
+  // Add this method to your ChatModel class
+
   ChatModel copyWith({
+    String? id,
     String? title,
+    DateTime? createdAt,
     DateTime? updatedAt,
     bool? isPinned,
     String? lastMessage,
   }) {
     return ChatModel(
-      id: id,
+      id: id ?? this.id,
       title: title ?? this.title,
-      createdAt: createdAt,
+      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isPinned: isPinned ?? this.isPinned,
       lastMessage: lastMessage ?? this.lastMessage,

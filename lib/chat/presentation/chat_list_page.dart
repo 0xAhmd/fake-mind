@@ -21,6 +21,7 @@ class ChatListPage extends StatelessWidget {
           style: GoogleFonts.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
+            fontSize: 28,
           ),
         ),
         backgroundColor: Colors.black,
@@ -117,7 +118,10 @@ class ChatListPage extends StatelessWidget {
                 // Search bar
                 if (state.chatHistory.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     child: TextField(
                       onChanged:
                           (query) =>
@@ -156,29 +160,37 @@ class ChatListPage extends StatelessWidget {
 
                 // Chat list
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: chats.length,
-                    itemBuilder: (context, index) {
-                      final chat = chats[index];
-                      return ChatListItem(
-                        chat: chat,
-                        onTap: () {
-                          context.read<ChatCubit>().switchToChat(chat.id);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ChatPage(),
-                            ),
-                          );
-                        },
-                        onDelete: () => _showDeleteDialog(context, chat),
-                        onPin:
-                            () => context.read<ChatCubit>().toggleChatPin(
-                              chat.id,
-                            ),
-                      );
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      await context.read<ChatCubit>().loadChatHistory();
                     },
+                    color: kChatBubbleUser,
+                    backgroundColor: Colors.black,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: chats.length,
+                      itemBuilder: (context, index) {
+                        final chat = chats[index];
+                        return ChatListItem(
+                          chat: chat,
+                          onTap: () {
+                            context.read<ChatCubit>().switchToChat(chat.id);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ChatPage(),
+                              ),
+                            );
+                          },
+                          onDelete: () => _showDeleteDialog(context, chat),
+                          onPin:
+                              () => context.read<ChatCubit>().toggleChatPin(
+                                chat.id,
+                              ),
+                          onRename: () => _showRenameDialog(context, chat),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -238,16 +250,154 @@ class ChatListPage extends StatelessWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          context.read<ChatCubit>().createNewChat();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ChatPage()),
-          );
-        },
+        onPressed: () => _showNewChatDialog(context),
         backgroundColor: kChatBubbleUser,
         child: const Icon(Icons.add, color: Colors.white),
       ),
+    );
+  }
+
+  void _showNewChatDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xff2a2a2a),
+          title: Text(
+            'New Chat',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Give your chat a name (optional)',
+                style: GoogleFonts.inter(color: Colors.grey[300]),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameController,
+                style: GoogleFonts.inter(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Enter chat name...',
+                  hintStyle: GoogleFonts.inter(color: Colors.grey[500]),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+                maxLength: 50,
+                textCapitalization: TextCapitalization.words,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: Colors.grey[400]),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final chatName = nameController.text.trim();
+                if (chatName.isNotEmpty) {
+                  context.read<ChatCubit>().createNewChatWithName(chatName);
+                } else {
+                  context.read<ChatCubit>().createNewChat();
+                }
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ChatPage()),
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: kChatBubbleUser),
+              child: Text(
+                'Create',
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showRenameDialog(BuildContext context, ChatModel chat) {
+    final TextEditingController nameController = TextEditingController(
+      text: chat.title,
+    );
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xff2a2a2a),
+          title: Text(
+            'Rename Chat',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                style: GoogleFonts.inter(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Enter new name...',
+                  hintStyle: GoogleFonts.inter(color: Colors.grey[500]),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+                maxLength: 50,
+                textCapitalization: TextCapitalization.words,
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: Colors.grey[400]),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = nameController.text.trim();
+                if (newName.isNotEmpty && newName != chat.title) {
+                  context.read<ChatCubit>().renameChat(chat.id, newName);
+                }
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: kChatBubbleUser),
+              child: Text(
+                'Rename',
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -295,6 +445,7 @@ class ChatListItem extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final VoidCallback onPin;
+  final VoidCallback onRename;
 
   const ChatListItem({
     super.key,
@@ -302,6 +453,7 @@ class ChatListItem extends StatelessWidget {
     required this.onTap,
     required this.onDelete,
     required this.onPin,
+    required this.onRename,
   });
 
   @override
@@ -386,6 +538,9 @@ class ChatListItem extends StatelessWidget {
           color: const Color(0xff2a2a2a),
           onSelected: (value) {
             switch (value) {
+              case 'rename':
+                onRename();
+                break;
               case 'pin':
                 onPin();
                 break;
@@ -396,6 +551,19 @@ class ChatListItem extends StatelessWidget {
           },
           itemBuilder:
               (BuildContext context) => [
+                PopupMenuItem<String>(
+                  value: 'rename',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.edit, color: kChatBubbleUser, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Rename',
+                        style: GoogleFonts.inter(color: kChatBubbleUser),
+                      ),
+                    ],
+                  ),
+                ),
                 PopupMenuItem<String>(
                   value: 'pin',
                   child: Row(

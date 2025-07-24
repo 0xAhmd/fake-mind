@@ -46,12 +46,14 @@ class ChatCubit extends Cubit<ChatState> {
       final statistics = await _databaseHelper.getChatStatistics();
 
       // Emit initial loaded state
-      emit(ChatLoaded(
-        chatHistory: chatHistory,
-        filteredChats: chatHistory,
-        statistics: statistics,
-        isOnline: isOnline,
-      ));
+      emit(
+        ChatLoaded(
+          chatHistory: chatHistory,
+          filteredChats: chatHistory,
+          statistics: statistics,
+          isOnline: isOnline,
+        ),
+      );
 
       // Sync data if online
       if (isOnline) {
@@ -70,7 +72,7 @@ class ChatCubit extends Cubit<ChatState> {
     if (state is ChatLoaded) {
       final currentState = state as ChatLoaded;
       final wasOffline = !currentState.isOnline;
-      
+
       emit(currentState.copyWith(isOnline: isOnline));
 
       if (isOnline && wasOffline) {
@@ -89,17 +91,20 @@ class ChatCubit extends Cubit<ChatState> {
     });
   }
 
-  Future<void> _loadChatHistory() async {
+  Future<void> loadChatHistory() async {
     try {
       final localChats = await _databaseHelper.getAllChats();
       if (state is ChatLoaded) {
         final currentState = state as ChatLoaded;
-        emit(currentState.copyWith(
-          chatHistory: localChats,
-          filteredChats: currentState.searchQuery.isEmpty 
-              ? localChats 
-              : _filterChats(localChats, currentState.searchQuery),
-        ));
+        emit(
+          currentState.copyWith(
+            chatHistory: localChats,
+            filteredChats:
+                currentState.searchQuery.isEmpty
+                    ? localChats
+                    : _filterChats(localChats, currentState.searchQuery),
+          ),
+        );
       }
     } catch (e) {
       debugPrint('Error loading chat history: $e');
@@ -123,15 +128,20 @@ class ChatCubit extends Cubit<ChatState> {
 
     try {
       final currentState = state as ChatLoaded;
-      
+
       // Get unsynced messages
       final unsyncedMessages = await _databaseHelper.getUnsyncedMessages();
 
       // Get unsynced chats
-      final unsyncedChats = currentState.chatHistory
-          .where((chat) => !unsyncedMessages.any(
-              (msg) => msg.chatId == chat.id && msg.synced))
-          .toList();
+      final unsyncedChats =
+          currentState.chatHistory
+              .where(
+                (chat) =>
+                    !unsyncedMessages.any(
+                      (msg) => msg.chatId == chat.id && msg.synced,
+                    ),
+              )
+              .toList();
 
       // Sync unsynced data
       await _firebaseService.syncUnsyncedData(unsyncedChats, unsyncedMessages);
@@ -152,7 +162,7 @@ class ChatCubit extends Cubit<ChatState> {
         }
       }
 
-      await _loadChatHistory();
+      await loadChatHistory();
       await _loadStatistics();
     } catch (e) {
       debugPrint('Error syncing with Firebase: $e');
@@ -163,39 +173,47 @@ class ChatCubit extends Cubit<ChatState> {
   void searchChats(String query) {
     if (state is ChatLoaded) {
       final currentState = state as ChatLoaded;
-      final filteredChats = query.isEmpty 
-          ? currentState.chatHistory
-          : _filterChats(currentState.chatHistory, query);
-      
-      emit(currentState.copyWith(
-        searchQuery: query,
-        filteredChats: filteredChats,
-      ));
+      final filteredChats =
+          query.isEmpty
+              ? currentState.chatHistory
+              : _filterChats(currentState.chatHistory, query);
+
+      emit(
+        currentState.copyWith(searchQuery: query, filteredChats: filteredChats),
+      );
     }
   }
 
   List<ChatModel> _filterChats(List<ChatModel> chats, String query) {
-    return chats.where((chat) =>
-        chat.title.toLowerCase().contains(query.toLowerCase()) ||
-        (chat.lastMessage?.toLowerCase().contains(query.toLowerCase()) ?? false)
-    ).toList();
+    return chats
+        .where(
+          (chat) =>
+              chat.title.toLowerCase().contains(query.toLowerCase()) ||
+              (chat.lastMessage?.toLowerCase().contains(query.toLowerCase()) ??
+                  false),
+        )
+        .toList();
   }
 
-  Future<List<MessageModel>> searchMessages(String query, {String? chatId}) async {
+  Future<List<MessageModel>> searchMessages(
+    String query, {
+    String? chatId,
+  }) async {
     return await _databaseHelper.searchMessages(query, chatId: chatId);
   }
 
-  // Create a new chat
+  // Create a new chat with default title
   Future<void> createNewChat({String? firstMessage}) async {
     try {
       if (state is! ChatLoaded) return;
-      
+
       final currentState = state as ChatLoaded;
-      
+
       final newChat = ChatModel(
-        title: firstMessage != null
-            ? _generateChatTitle(firstMessage)
-            : 'New Chat',
+        title:
+            firstMessage != null
+                ? _generateChatTitle(firstMessage)
+                : 'New Chat',
       );
 
       // Save to local database
@@ -215,12 +233,15 @@ class ChatCubit extends Cubit<ChatState> {
 
       // Add to history
       final updatedHistory = [newChat, ...currentState.chatHistory];
-      emit(currentState.copyWith(
-        chatHistory: updatedHistory,
-        filteredChats: currentState.searchQuery.isEmpty 
-            ? updatedHistory 
-            : _filterChats(updatedHistory, currentState.searchQuery),
-      ));
+      emit(
+        currentState.copyWith(
+          chatHistory: updatedHistory,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? updatedHistory
+                  : _filterChats(updatedHistory, currentState.searchQuery),
+        ),
+      );
 
       // Send first message if provided
       if (firstMessage != null) {
@@ -234,11 +255,120 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  // Create a new chat with a custom name
+  Future<void> createNewChatWithName(String chatName) async {
+    try {
+      if (state is! ChatLoaded) return;
+
+      final currentState = state as ChatLoaded;
+
+      final newChat = ChatModel(
+        title: chatName.trim().isNotEmpty ? chatName.trim() : 'New Chat',
+      );
+
+      // Save to local database
+      await _databaseHelper.insertChat(newChat);
+
+      // Sync to Firebase if online
+      if (currentState.isOnline) {
+        try {
+          await _firebaseService.syncChat(newChat);
+        } catch (e) {
+          debugPrint('Failed to sync new chat to Firebase: $e');
+        }
+      }
+
+      // Set as current chat
+      await _setCurrentChat(newChat.id);
+
+      // Add to history
+      final updatedHistory = [newChat, ...currentState.chatHistory];
+      emit(
+        currentState.copyWith(
+          chatHistory: updatedHistory,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? updatedHistory
+                  : _filterChats(updatedHistory, currentState.searchQuery),
+          currentChat: newChat,
+        ),
+      );
+
+      await _loadStatistics();
+    } catch (e) {
+      emit(ChatError(error: 'Failed to create new chat: $e'));
+      debugPrint('Error creating new chat: $e');
+    }
+  }
+
+  // Rename an existing chat
+  Future<void> renameChat(String chatId, String newName) async {
+    try {
+      if (state is! ChatLoaded) return;
+
+      final currentState = state as ChatLoaded;
+      final trimmedName = newName.trim();
+
+      if (trimmedName.isEmpty) return;
+
+      // Get the chat from database
+      final chat = await _databaseHelper.getChat(chatId);
+      if (chat == null) return;
+
+      // Create updated chat with new name
+      final updatedChat = chat.copyWith(
+        title: trimmedName,
+        updatedAt: DateTime.now(),
+      );
+
+      // Update in local database
+      await _databaseHelper.updateChat(updatedChat);
+
+      // Sync to Firebase if online
+      if (currentState.isOnline) {
+        try {
+          await _firebaseService.syncChat(updatedChat);
+        } catch (e) {
+          debugPrint('Failed to sync renamed chat to Firebase: $e');
+        }
+      }
+
+      // Update in chat history
+      final updatedHistory =
+          currentState.chatHistory
+              .map((c) => c.id == chatId ? updatedChat : c)
+              .toList();
+
+      // Update current chat if it's the same
+      final updatedCurrentChat =
+          currentState.currentChat?.id == chatId
+              ? updatedChat
+              : currentState.currentChat;
+
+      // Update state
+      emit(
+        currentState.copyWith(
+          chatHistory: updatedHistory,
+          currentChat: updatedCurrentChat,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? updatedHistory
+                  : _filterChats(updatedHistory, currentState.searchQuery),
+        ),
+      );
+
+      await _loadStatistics();
+    } catch (e) {
+      emit(ChatError(error: 'Failed to rename chat: $e'));
+      debugPrint('Error renaming chat: $e');
+    }
+  }
+
   // Set current chat and load messages
   Future<void> _setCurrentChat(String chatId) async {
     try {
       if (state is! ChatLoaded) return;
-      
+
       final currentState = state as ChatLoaded;
       final chat = await _databaseHelper.getChat(chatId);
 
@@ -250,33 +380,34 @@ class ChatCubit extends Cubit<ChatState> {
         final localMessages = await _databaseHelper.getMessagesForChat(chatId);
 
         // Update state with current chat and messages
-        emit(currentState.copyWith(
-          currentChat: chat,
-          messages: localMessages,
-        ));
+        emit(currentState.copyWith(currentChat: chat, messages: localMessages));
 
         // If online, also listen to Firebase stream
         if (currentState.isOnline) {
           _messageStreamSubscription = _firebaseService
               .getMessageStream(chatId)
               .listen((firebaseMessages) {
-            if (state is ChatLoaded) {
-              final state_ = state as ChatLoaded;
-              final updatedMessages = List<MessageModel>.from(state_.messages);
-              
-              // Merge with local messages (avoiding duplicates)
-              for (final fbMessage in firebaseMessages) {
-                if (!updatedMessages.any((msg) => msg.id == fbMessage.id)) {
-                  updatedMessages.add(fbMessage);
-                  // Save to local database
-                  _databaseHelper.insertMessage(fbMessage);
+                if (state is ChatLoaded) {
+                  final state_ = state as ChatLoaded;
+                  final updatedMessages = List<MessageModel>.from(
+                    state_.messages,
+                  );
+
+                  // Merge with local messages (avoiding duplicates)
+                  for (final fbMessage in firebaseMessages) {
+                    if (!updatedMessages.any((msg) => msg.id == fbMessage.id)) {
+                      updatedMessages.add(fbMessage);
+                      // Save to local database
+                      _databaseHelper.insertMessage(fbMessage);
+                    }
+                  }
+                  updatedMessages.sort(
+                    (a, b) => a.timestamp.compareTo(b.timestamp),
+                  );
+
+                  emit(state_.copyWith(messages: updatedMessages));
                 }
-              }
-              updatedMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-              
-              emit(state_.copyWith(messages: updatedMessages));
-            }
-          });
+              });
         }
       }
     } catch (e) {
@@ -293,10 +424,10 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> toggleChatPin(String chatId) async {
     try {
       if (state is! ChatLoaded) return;
-      
+
       final currentState = state as ChatLoaded;
       final chat = await _databaseHelper.getChat(chatId);
-      
+
       if (chat != null) {
         final updatedChat = chat.copyWith(isPinned: !chat.isPinned);
         await _databaseHelper.updateChat(updatedChat);
@@ -306,21 +437,27 @@ class ChatCubit extends Cubit<ChatState> {
         }
 
         // Update in history
-        final updatedHistory = currentState.chatHistory.map((c) => 
-            c.id == chatId ? updatedChat : c).toList();
+        final updatedHistory =
+            currentState.chatHistory
+                .map((c) => c.id == chatId ? updatedChat : c)
+                .toList();
 
         // Update current chat if it's the same
-        final updatedCurrentChat = currentState.currentChat?.id == chatId 
-            ? updatedChat 
-            : currentState.currentChat;
+        final updatedCurrentChat =
+            currentState.currentChat?.id == chatId
+                ? updatedChat
+                : currentState.currentChat;
 
-        emit(currentState.copyWith(
-          chatHistory: updatedHistory,
-          currentChat: updatedCurrentChat,
-          filteredChats: currentState.searchQuery.isEmpty 
-              ? updatedHistory 
-              : _filterChats(updatedHistory, currentState.searchQuery),
-        ));
+        emit(
+          currentState.copyWith(
+            chatHistory: updatedHistory,
+            currentChat: updatedCurrentChat,
+            filteredChats:
+                currentState.searchQuery.isEmpty
+                    ? updatedHistory
+                    : _filterChats(updatedHistory, currentState.searchQuery),
+          ),
+        );
 
         await _loadStatistics();
       }
@@ -375,7 +512,8 @@ class ChatCubit extends Cubit<ChatState> {
         response = await _sendMessageWithRetry(content);
       } else {
         // Provide offline response
-        response = "I'm currently offline. Your message has been saved and I'll respond when connection is restored.";
+        response =
+            "I'm currently offline. Your message has been saved and I'll respond when connection is restored.";
       }
 
       final responseMessage = MessageModel(
@@ -398,11 +536,13 @@ class ChatCubit extends Cubit<ChatState> {
         }
       }
 
-      // Update chat title if it's the first exchange
+      // Update chat title if it's the first exchange and title is still default
       ChatModel? updatedCurrentChat = currentState.currentChat;
       List<ChatModel> updatedHistory = currentState.chatHistory;
-      
-      if (finalMessages.where((m) => m.isUser).length == 1) {
+
+      if (finalMessages.where((m) => m.isUser).length == 1 &&
+          (currentState.currentChat!.title == 'New Chat' ||
+              currentState.currentChat!.title.isEmpty)) {
         updatedCurrentChat = currentState.currentChat!.copyWith(
           title: _generateChatTitle(content),
           updatedAt: DateTime.now(),
@@ -418,19 +558,29 @@ class ChatCubit extends Cubit<ChatState> {
         }
 
         // Update in history
-        updatedHistory = currentState.chatHistory.map((chat) => 
-            chat.id == updatedCurrentChat!.id ? updatedCurrentChat : chat).toList();
+        updatedHistory =
+            currentState.chatHistory
+                .map(
+                  (chat) =>
+                      chat.id == updatedCurrentChat!.id
+                          ? updatedCurrentChat
+                          : chat,
+                )
+                .toList();
       }
 
-      emit(currentState.copyWith(
-        messages: finalMessages,
-        isLoading: false,
-        currentChat: updatedCurrentChat,
-        chatHistory: updatedHistory,
-        filteredChats: currentState.searchQuery.isEmpty 
-            ? updatedHistory 
-            : _filterChats(updatedHistory, currentState.searchQuery),
-      ));
+      emit(
+        currentState.copyWith(
+          messages: finalMessages,
+          isLoading: false,
+          currentChat: updatedCurrentChat,
+          chatHistory: updatedHistory,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? updatedHistory
+                  : _filterChats(updatedHistory, currentState.searchQuery),
+        ),
+      );
     } catch (e) {
       final errorMessage = MessageModel(
         chatId: currentState.currentChat!.id,
@@ -438,22 +588,22 @@ class ChatCubit extends Cubit<ChatState> {
         isUser: false,
         synced: false,
       );
-      
+
       final errorMessages = [...updatedMessages, errorMessage];
       await _databaseHelper.insertMessage(errorMessage);
-      
-      emit(currentState.copyWith(
-        messages: errorMessages,
-        isLoading: false,
-      ));
-      
+
+      emit(currentState.copyWith(messages: errorMessages, isLoading: false));
+
       debugPrint('Error sending message: $e');
     }
 
     await _loadStatistics();
   }
 
-  Future<String> _sendMessageWithRetry(String content, {int attempt = 1}) async {
+  Future<String> _sendMessageWithRetry(
+    String content, {
+    int attempt = 1,
+  }) async {
     const maxAttempts = 3;
     const baseDelay = Duration(seconds: 1);
 
@@ -475,7 +625,7 @@ class ChatCubit extends Cubit<ChatState> {
   // Enhanced retry failed messages
   Future<void> retryFailedMessages() async {
     if (state is! ChatLoaded) return;
-    
+
     final currentState = state as ChatLoaded;
     if (!currentState.isOnline || currentState.isRetrying) return;
 
@@ -489,12 +639,15 @@ class ChatCubit extends Cubit<ChatState> {
 
         try {
           // Find the user message that this bot message was responding to
-          final userMessage = currentState.messages
-              .where((m) =>
-                  m.chatId == message.chatId &&
-                  m.isUser &&
-                  m.timestamp.isBefore(message.timestamp))
-              .lastOrNull;
+          final userMessage =
+              currentState.messages
+                  .where(
+                    (m) =>
+                        m.chatId == message.chatId &&
+                        m.isUser &&
+                        m.timestamp.isBefore(message.timestamp),
+                  )
+                  .lastOrNull;
 
           if (userMessage != null) {
             final response = await _sendMessageWithRetry(userMessage.content);
@@ -504,13 +657,15 @@ class ChatCubit extends Cubit<ChatState> {
               synced: true,
             );
 
-            final updatedMessages = currentState.messages.map((m) => 
-                m.id == message.id ? updatedMessage : m).toList();
+            final updatedMessages =
+                currentState.messages
+                    .map((m) => m.id == message.id ? updatedMessage : m)
+                    .toList();
 
             await _databaseHelper.insertMessage(updatedMessage);
             await _firebaseService.syncMessage(updatedMessage);
             await _databaseHelper.markMessageAsSynced(updatedMessage.id);
-            
+
             emit(currentState.copyWith(messages: updatedMessages));
           }
         } catch (e) {
@@ -532,9 +687,9 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> deleteChat(String chatId) async {
     try {
       if (state is! ChatLoaded) return;
-      
+
       final currentState = state as ChatLoaded;
-      
+
       await _databaseHelper.deleteChat(chatId);
 
       if (currentState.isOnline) {
@@ -545,28 +700,30 @@ class ChatCubit extends Cubit<ChatState> {
         }
       }
 
-      final updatedHistory = currentState.chatHistory
-          .where((chat) => chat.id != chatId)
-          .toList();
+      final updatedHistory =
+          currentState.chatHistory.where((chat) => chat.id != chatId).toList();
 
       // If deleting current chat, clear current chat
       ChatModel? updatedCurrentChat = currentState.currentChat;
       List<MessageModel> updatedMessages = currentState.messages;
-      
+
       if (currentState.currentChat?.id == chatId) {
         updatedCurrentChat = null;
         updatedMessages = [];
         _messageStreamSubscription?.cancel();
       }
 
-      emit(currentState.copyWith(
-        chatHistory: updatedHistory,
-        filteredChats: currentState.searchQuery.isEmpty 
-            ? updatedHistory 
-            : _filterChats(updatedHistory, currentState.searchQuery),
-        currentChat: updatedCurrentChat,
-        messages: updatedMessages,
-      ));
+      emit(
+        currentState.copyWith(
+          chatHistory: updatedHistory,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? updatedHistory
+                  : _filterChats(updatedHistory, currentState.searchQuery),
+          currentChat: updatedCurrentChat,
+          messages: updatedMessages,
+        ),
+      );
 
       await _loadStatistics();
     } catch (e) {
@@ -579,14 +736,13 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> deleteMessage(String messageId) async {
     try {
       if (state is! ChatLoaded) return;
-      
+
       final currentState = state as ChatLoaded;
-      
+
       await _databaseHelper.deleteMessage(messageId);
 
-      final updatedMessages = currentState.messages
-          .where((msg) => msg.id != messageId)
-          .toList();
+      final updatedMessages =
+          currentState.messages.where((msg) => msg.id != messageId).toList();
 
       emit(currentState.copyWith(messages: updatedMessages));
 
@@ -599,9 +755,10 @@ class ChatCubit extends Cubit<ChatState> {
   // Export chat functionality
   String exportChatAsText(String chatId) {
     if (state is! ChatLoaded) return '';
-    
+
     final currentState = state as ChatLoaded;
-    final chatMessages = currentState.messages.where((m) => m.chatId == chatId).toList();
+    final chatMessages =
+        currentState.messages.where((m) => m.chatId == chatId).toList();
     final chat = currentState.chatHistory.firstWhere((c) => c.id == chatId);
 
     final buffer = StringBuffer();
@@ -624,15 +781,17 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> clearAllData() async {
     try {
       await _databaseHelper.clearDatabase();
-      
-      emit(const ChatLoaded(
-        chatHistory: [],
-        filteredChats: [],
-        messages: [],
-        currentChat: null,
-        statistics: {},
-        searchQuery: '',
-      ));
+
+      emit(
+        const ChatLoaded(
+          chatHistory: [],
+          filteredChats: [],
+          messages: [],
+          currentChat: null,
+          statistics: {},
+          searchQuery: '',
+        ),
+      );
     } catch (e) {
       emit(ChatError(error: 'Failed to clear data: $e'));
       debugPrint('Error clearing all data: $e');
