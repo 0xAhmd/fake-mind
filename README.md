@@ -64,7 +64,7 @@
 * **Dart** – programming language
 * **Gemini API** – AI responses
 * **Markdown** – output formatting
-* **Provider**
+* **flutter_bloc** - State management
 
 ---
 
