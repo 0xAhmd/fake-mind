@@ -1,4 +1,3 @@
-
 import 'package:fake_mind/chat/data/model/chat_model.dart';
 import 'package:fake_mind/chat/data/model/message_model.dart';
 
@@ -10,7 +9,9 @@ abstract class ChatRepository {
   Future<void> deleteChat(String chatId);
   Future<List<MessageModel>> getMessagesForChat(String chatId);
   Future<void> insertMessage(MessageModel message);
+  Future<void> updateMessage(MessageModel message); // Added this method
   Future<void> deleteMessage(String messageId);
+  Future<MessageModel?> getMessage(String messageId); // Added this method
   Future<List<MessageModel>> searchMessages(String query, {String? chatId});
   Future<Map<String, dynamic>> getChatStatistics();
   Future<void> markMessageAsSynced(String messageId);

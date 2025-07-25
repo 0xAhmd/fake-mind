@@ -28,6 +28,10 @@ class MessagesList extends StatelessWidget {
               return ChatBubble(
                 message: message,
                 showSyncStatus: !state.isOnline,
+                onRetry:
+                    !message.isUser
+                        ? () => _retryMessage(context, message.id)
+                        : null,
               );
             },
             itemCount: state.messages.length,
@@ -43,6 +47,11 @@ class MessagesList extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _retryMessage(BuildContext context, String messageId) {
+    // You'll need to implement this method in your ChatCubit
+    context.read<ChatCubit>().retryMessage(messageId);
   }
 
   Widget _buildEmptyState() {

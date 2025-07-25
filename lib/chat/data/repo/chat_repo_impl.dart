@@ -2,7 +2,6 @@ import 'package:fake_mind/chat/data/model/chat_model.dart';
 import 'package:fake_mind/chat/data/model/message_model.dart';
 import 'package:fake_mind/chat/domain/repo/chat_repo.dart';
 
-
 import '../db_helper.dart';
 
 class ChatRepositoryImpl implements ChatRepository {
@@ -32,6 +31,14 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Future<void> insertMessage(MessageModel message) =>
       _databaseHelper.insertMessage(message);
+
+  @override
+  Future<void> updateMessage(MessageModel message) =>
+      _databaseHelper.updateMessage(message);
+
+  @override
+  Future<MessageModel?> getMessage(String messageId) =>
+      _databaseHelper.getMessage(messageId);
 
   @override
   Future<void> deleteMessage(String messageId) =>

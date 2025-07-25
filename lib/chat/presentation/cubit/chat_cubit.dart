@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:fake_mind/chat/domain/repo/chat_repo.dart';
 import 'package:fake_mind/chat/domain/usecases/chat_managment_usecase.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
@@ -17,12 +18,14 @@ class ChatCubit extends Cubit<ChatState> {
   final SyncUseCase _syncUseCase;
   final GoogleGenerativeApiService _apiService;
   final ConnectivityService _connectivityService;
+  final ChatRepository chatRepository;
 
   StreamSubscription<bool>? _connectivitySubscription;
   StreamSubscription<List<MessageModel>>? _messageStreamSubscription;
   Timer? _syncTimer;
 
   ChatCubit({
+    required this.chatRepository,
     required ChatManagementUseCase chatUseCase,
     required MessageUseCase messageUseCase,
     required SyncUseCase syncUseCase,
@@ -116,7 +119,6 @@ class ChatCubit extends Cubit<ChatState> {
 
   Future<Map<String, dynamic>> _getStatistics() async {
     try {
-      // Get statistics from repository through use case
       return await _messageUseCase.getStatistics();
     } catch (e) {
       debugPrint('Error getting statistics: $e');
@@ -180,7 +182,6 @@ class ChatCubit extends Cubit<ChatState> {
       if (state is ChatLoaded) {
         emit((state as ChatLoaded).copyWith(isLoading: false));
       }
-      // Don't emit error state for loading failures, just log
     }
   }
 
@@ -192,7 +193,7 @@ class ChatCubit extends Cubit<ChatState> {
       final _ = state as ChatLoaded;
       await _chatUseCase.createChat(firstMessage: firstMessage);
 
-      await loadChatHistory(); // Use the fixed loadChatHistory method
+      await loadChatHistory();
 
       if (firstMessage != null) {
         final updatedHistory = await _chatUseCase.getAllChats();
@@ -213,7 +214,7 @@ class ChatCubit extends Cubit<ChatState> {
       final _ = state as ChatLoaded;
       await _chatUseCase.createChat(title: chatName.trim());
 
-      await loadChatHistory(); // Use the fixed loadChatHistory method
+      await loadChatHistory();
 
       final updatedHistory = await _chatUseCase.getAllChats();
       final newChat = updatedHistory.first;
@@ -234,7 +235,7 @@ class ChatCubit extends Cubit<ChatState> {
       final currentState = state as ChatLoaded;
       await _chatUseCase.renameChat(chatId, newName);
 
-      await loadChatHistory(); // Use the fixed loadChatHistory method
+      await loadChatHistory();
 
       // Update current chat if it's the same one
       if (currentState.currentChat?.id == chatId) {
@@ -263,7 +264,7 @@ class ChatCubit extends Cubit<ChatState> {
       final currentState = state as ChatLoaded;
       await _chatUseCase.togglePin(chatId);
 
-      await loadChatHistory(); // Use the fixed loadChatHistory method
+      await loadChatHistory();
 
       // Update current chat if it's the same one
       if (currentState.currentChat?.id == chatId) {
@@ -291,7 +292,7 @@ class ChatCubit extends Cubit<ChatState> {
       final currentState = state as ChatLoaded;
       await _chatUseCase.deleteChat(chatId);
 
-      await loadChatHistory(); // Use the fixed loadChatHistory method
+      await loadChatHistory();
 
       // Clear current chat if it was deleted
       if (currentState.currentChat?.id == chatId) {
@@ -424,6 +425,136 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  /// Retry/regenerate a specific bot message
+  Future<void> retryMessage(String messageId) async {
+    if (state is! ChatLoaded) return;
+
+    final currentState = state as ChatLoaded;
+    if (!currentState.isOnline) {
+      _showOfflineMessage();
+      return;
+    }
+
+    try {
+      debugPrint('🔄 Retrying message: $messageId');
+
+      // Get the message to retry
+      final messageToRetry = await _messageUseCase.getMessage(messageId);
+      if (messageToRetry == null || messageToRetry.isUser) {
+        debugPrint('❌ Cannot retry: message not found or is user message');
+        return;
+      }
+
+      // Get the previous user message to regenerate response
+      final previousUserMessage = await _messageUseCase.getPreviousUserMessage(
+        messageId,
+      );
+      if (previousUserMessage == null) {
+        debugPrint('❌ Cannot retry: no previous user message found');
+        return;
+      }
+
+      // Get conversation context for better regeneration
+      final context = await _messageUseCase.getConversationContext(
+        messageId,
+        contextLimit: 5,
+      );
+
+      // Set loading state for this specific message
+      emit(currentState.copyWith(isLoading: true));
+
+      // Generate new response using the previous user message and context
+      final newResponse = await _generateResponseWithContext(
+        previousUserMessage.content,
+        context,
+      );
+
+      // Update the message with new content
+      final regeneratedMessage = await _messageUseCase.regenerateBotMessage(
+        messageId: messageId,
+        newContent: newResponse,
+        isOnline: true,
+      );
+
+      // Update the messages list in the state
+      final updatedMessages =
+          currentState.messages.map((msg) {
+            return msg.id == messageId ? regeneratedMessage : msg;
+          }).toList();
+
+      // Sync the updated message
+      try {
+        await _syncUseCase.syncMessage(regeneratedMessage);
+        await _messageUseCase.markAsSynced(messageId);
+      } catch (e) {
+        debugPrint('Failed to sync regenerated message: $e');
+      }
+
+      emit(currentState.copyWith(messages: updatedMessages, isLoading: false));
+
+      debugPrint('✅ Message regenerated successfully');
+    } catch (e) {
+      debugPrint('❌ Error retrying message: $e');
+
+      // Create error message to replace the failed one
+      try {
+        final errorResponse =
+            'Sorry, I couldn\'t regenerate this response. Please try again.';
+        final errorMessage = await _messageUseCase.regenerateBotMessage(
+          messageId: messageId,
+          newContent: errorResponse,
+          isOnline: false,
+        );
+
+        final updatedMessages =
+            currentState.messages.map((msg) {
+              return msg.id == messageId ? errorMessage : msg;
+            }).toList();
+
+        emit(
+          currentState.copyWith(messages: updatedMessages, isLoading: false),
+        );
+      } catch (updateError) {
+        debugPrint('❌ Failed to update message with error: $updateError');
+        emit(currentState.copyWith(isLoading: false));
+      }
+    }
+  }
+
+  /// Generate response with conversation context
+  Future<String> _generateResponseWithContext(
+    String userMessage,
+    List<MessageModel> context,
+  ) async {
+    try {
+      // Build context string from previous messages
+      final contextBuffer = StringBuffer();
+
+      if (context.isNotEmpty) {
+        contextBuffer.writeln('Previous conversation context:');
+        for (final msg in context) {
+          final sender = msg.isUser ? 'User' : 'Assistant';
+          contextBuffer.writeln('$sender: ${msg.content}');
+        }
+        contextBuffer.writeln('\nCurrent message:');
+      }
+
+      contextBuffer.writeln('User: $userMessage');
+
+      // Send the full context to the API
+      return await _sendMessageWithRetry(contextBuffer.toString());
+    } catch (e) {
+      // Fallback to simple message if context fails
+      debugPrint('Context generation failed, using simple message: $e');
+      return await _sendMessageWithRetry(userMessage);
+    }
+  }
+
+  void _showOfflineMessage() {
+    // This would typically show a snackbar or toast
+    debugPrint('Cannot retry message while offline');
+  }
+
   Future<String> _sendMessageWithRetry(
     String content, {
     int attempt = 1,
@@ -455,8 +586,27 @@ class ChatCubit extends Cubit<ChatState> {
     emit(currentState.copyWith(isRetrying: true));
 
     try {
-      final _ = await _messageUseCase.getFailedMessages();
-      // Implementation for retry logic...
+      final failedMessages = await _messageUseCase.getFailedMessages();
+      debugPrint('🔄 Retrying ${failedMessages.length} failed messages');
+
+      for (final failedMessage in failedMessages) {
+        try {
+          if (!failedMessage.isUser) {
+            // For bot messages, regenerate the response
+            await retryMessage(failedMessage.id);
+          } else {
+            // For user messages, just mark as synced if we can sync them
+            await _syncUseCase.syncMessage(failedMessage);
+            await _messageUseCase.markAsSynced(failedMessage.id);
+          }
+        } catch (e) {
+          debugPrint('Failed to retry message ${failedMessage.id}: $e');
+          // Increment retry count for tracking
+          await chatRepository.incrementMessageRetryCount(failedMessage.id);
+        }
+      }
+
+      debugPrint('✅ Finished retrying failed messages');
     } catch (e) {
       debugPrint('Error retrying failed messages: $e');
     }

@@ -52,22 +52,25 @@ class MessageModel {
       ),
     );
   }
+  // Add this copyWith method to your MessageModel class
 
   MessageModel copyWith({
+    String? id,
+    String? chatId,
     String? content,
+    bool? isUser,
+    DateTime? timestamp,
     bool? synced,
     int? retryCount,
-    MessageType? messageType,
   }) {
     return MessageModel(
-      id: id,
-      chatId: chatId,
+      id: id ?? this.id,
+      chatId: chatId ?? this.chatId,
       content: content ?? this.content,
-      isUser: isUser,
-      timestamp: timestamp,
+      isUser: isUser ?? this.isUser,
+      timestamp: timestamp ?? this.timestamp,
       synced: synced ?? this.synced,
       retryCount: retryCount ?? this.retryCount,
-      messageType: messageType ?? this.messageType,
     );
   }
 

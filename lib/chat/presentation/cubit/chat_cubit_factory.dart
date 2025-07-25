@@ -28,6 +28,7 @@ class ChatCubitFactory {
 
     // Create and return cubit
     return ChatCubit(
+      chatRepository: repository,
       chatUseCase: chatUseCase,
       messageUseCase: messageUseCase,
       syncUseCase: syncUseCase,

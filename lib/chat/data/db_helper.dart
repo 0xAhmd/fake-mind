@@ -525,4 +525,33 @@ class DatabaseHelper {
       return 0;
     }
   }
+
+  Future<void> updateMessage(MessageModel message) async {
+    final db = await database;
+    await db.update(
+      'messages',
+      message.toMap(),
+      where: 'id = ?',
+      whereArgs: [message.id],
+    );
+    debugPrint('✅ Updated message: ${message.id}');
+  }
+
+  /// Gets a specific message by ID
+  Future<MessageModel?> getMessage(String messageId) async {
+    final db = await database;
+    final result = await db.query(
+      'messages',
+      where: 'id = ?',
+      whereArgs: [messageId],
+      limit: 1,
+    );
+
+    if (result.isNotEmpty) {
+      return MessageModel.fromMap(result.first);
+    }
+    return null;
+  }
+
+  
 }
