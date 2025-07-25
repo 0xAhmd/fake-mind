@@ -1,4 +1,4 @@
-import 'package:fake_mind/chat/presentation/cubit/chat_cubit.dart';
+import 'package:fake_mind/chat/presentation/cubit/chat_cubit_factory.dart';
 import 'package:fake_mind/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -12,20 +12,26 @@ import 'constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-  await Firebase.initializeApp();
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
-  );
 
   try {
+    // Load environment variables
+    await dotenv.load(fileName: ".env");
+    debugPrint('Environment variables loaded successfully');
+
+    // Initialize Firebase
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
     debugPrint('Firebase initialized successfully');
+
+    // Set system UI overlay style
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
+    );
   } catch (e) {
-    debugPrint('Firebase initialization failed: $e');
+    debugPrint('Initialization failed: $e');
   }
+
   runApp(const MyApp());
 }
 
@@ -35,7 +41,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => ChatCubit(),
+      create: (context) => ChatCubitFactory.create(),
       child: MaterialApp(
         title: 'Fake Mind',
         theme: ThemeData(

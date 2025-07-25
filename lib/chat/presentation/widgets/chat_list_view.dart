@@ -1,4 +1,5 @@
 import 'package:fake_mind/chat/presentation/cubit/chat_cubit.dart';
+import 'package:fake_mind/chat/presentation/cubit/chat_state.dart';
 import 'package:fake_mind/chat/presentation/pages/chat_page.dart';
 import 'package:fake_mind/chat/presentation/widgets/chat_dialogs.dart';
 import 'package:fake_mind/chat/presentation/widgets/chat_list_item.dart';
@@ -20,17 +21,27 @@ class ChatListView extends StatelessWidget {
       },
       color: kChatBubbleUser,
       backgroundColor: Colors.black,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: chats.length,
-        itemBuilder: (context, index) {
-          final chat = chats[index];
-          return ChatListItem(
-            chat: chat,
-            onTap: () => _navigateToChat(context, chat),
-            onDelete: () => ChatDialogs.showDeleteDialog(context, chat),
-            onPin: () => context.read<ChatCubit>().toggleChatPin(chat.id),
-            onRename: () => ChatDialogs.showRenameDialog(context, chat),
+      child: BlocBuilder<ChatCubit, ChatState>(
+        builder: (context, state) {
+          if (state is ChatLoaded && state.isLoading) {
+            return const Center(
+              child: CircularProgressIndicator(color: kChatBubbleUser),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: chats.length,
+            itemBuilder: (context, index) {
+              final chat = chats[index];
+              return ChatListItem(
+                chat: chat,
+                onTap: () => _navigateToChat(context, chat),
+                onDelete: () => ChatDialogs.showDeleteDialog(context, chat),
+                onPin: () => context.read<ChatCubit>().toggleChatPin(chat.id),
+                onRename: () => ChatDialogs.showRenameDialog(context, chat),
+              );
+            },
           );
         },
       ),
