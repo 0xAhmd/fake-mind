@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # fake_mind
 
 A new Flutter project.
@@ -105,6 +104,3 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 ---
 
 > Built with ❤️ using Flutter and Gemini AI
-
-
->>>>>>> c6dbc39f8bf7fdfe437041aa6ef9b7997619e123
