@@ -1,22 +1,3 @@
-<<<<<<< HEAD
-# fake_mind
-
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-=======
-
 # 🤖 Fake Mind
 
 **Fake Mind** is a simple AI-powered chatbot app built with Flutter and integrated with the Gemini API. It provides intelligent, context-aware responses with support for Markdown-formatted output, all wrapped in a clean, minimal, and responsive UI.
@@ -32,7 +13,6 @@ samples, guidance on mobile development, and a full API reference.
 ## ✨ Features
 
 - 💬 AI-powered interactive chatbot
-- 🧠 Context-aware responses using **Gemini API**
 - 📝 Supports **Markdown-formatted** output
 - 🖼️ Clean and minimal **Flutter UI**
 - 📱 Fully responsive and user-friendly design
@@ -84,7 +64,7 @@ samples, guidance on mobile development, and a full API reference.
 * **Dart** – programming language
 * **Gemini API** – AI responses
 * **Markdown** – output formatting
-* **Provider**
+* **flutter_bloc** - State management
 
 ---
 
@@ -105,6 +85,3 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 ---
 
 > Built with ❤️ using Flutter and Gemini AI
-
-
->>>>>>> c6dbc39f8bf7fdfe437041aa6ef9b7997619e123
