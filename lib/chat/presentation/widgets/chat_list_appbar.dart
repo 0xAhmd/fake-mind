@@ -10,34 +10,39 @@ class ChatListAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
-      title: Text(
-        'Chat History',
-        style: GoogleFonts.inter(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-          fontSize: 28,
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: AppBar(
+        leadingWidth: 45,
+        leading: Image.asset("assets/logo.png", color: Colors.white),
+        title: Text(
+          'Chat History',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 28,
+          ),
         ),
+        backgroundColor: Colors.black,
+        elevation: 0,
+        actions: [
+          BlocBuilder<ChatCubit, ChatState>(
+            builder: (context, state) {
+              if (state is ChatLoaded) {
+                return Row(
+                  children: [
+                    _buildStatusIndicator(state.isOnline),
+                    const SizedBox(width: 8),
+                    if (!state.isOnline) _buildRetryButton(context),
+                    const SizedBox(width: 8),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
-      backgroundColor: Colors.black,
-      elevation: 0,
-      actions: [
-        BlocBuilder<ChatCubit, ChatState>(
-          builder: (context, state) {
-            if (state is ChatLoaded) {
-              return Row(
-                children: [
-                  _buildStatusIndicator(state.isOnline),
-                  const SizedBox(width: 8),
-                  if (!state.isOnline) _buildRetryButton(context),
-                  const SizedBox(width: 8),
-                ],
-              );
-            }
-            return const SizedBox.shrink();
-          },
-        ),
-      ],
     );
   }
 
