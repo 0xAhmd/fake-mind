@@ -152,7 +152,7 @@ class MessageUseCase {
     buffer.writeln('Chat Export: ${chat.title}');
     buffer.writeln('Created: ${chat.createdAt}');
     buffer.writeln('Last Updated: ${chat.updatedAt}');
-    buffer.writeln('${'=' * 50}');
+    buffer.writeln('=' * 50);
 
     for (final message in messages) {
       final sender = message.isUser ? 'You' : 'AI';
