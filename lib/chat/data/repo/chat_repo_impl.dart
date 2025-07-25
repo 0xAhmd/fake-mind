@@ -2,7 +2,7 @@ import 'package:fake_mind/chat/data/model/chat_model.dart';
 import 'package:fake_mind/chat/data/model/message_model.dart';
 import 'package:fake_mind/chat/domain/repo/chat_repo.dart';
 
-import '../db_helper.dart';
+import '../services/offline/db_helper.dart';
 
 class ChatRepositoryImpl implements ChatRepository {
   final DatabaseHelper _databaseHelper;

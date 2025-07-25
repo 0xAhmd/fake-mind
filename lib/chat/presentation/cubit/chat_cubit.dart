@@ -228,32 +228,81 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  // Fixed renameChat method in ChatCubit
   Future<void> renameChat(String chatId, String newName) async {
-    if (state is! ChatLoaded) return;
+    if (state is! ChatLoaded) {
+      debugPrint('❌ Cannot rename chat: Invalid state');
+      return;
+    }
+
+    if (newName.trim().isEmpty) {
+      debugPrint('❌ Cannot rename chat: Empty name');
+      emit(ChatError(error: 'Chat name cannot be empty'));
+      return;
+    }
 
     try {
       final currentState = state as ChatLoaded;
-      await _chatUseCase.renameChat(chatId, newName);
+      debugPrint('🏷️ Starting chat rename: $chatId -> $newName');
 
+      // Set loading state
+      emit(currentState.copyWith(isLoading: true));
+
+      // Perform the rename operation
+      await _chatUseCase.renameChat(chatId, newName.trim());
+      debugPrint('✅ Chat renamed successfully in use case');
+
+      // Reload chat history to get updated data
       await loadChatHistory();
+      debugPrint('✅ Chat history reloaded after rename');
 
-      // Update current chat if it's the same one
+      // Update current chat if it's the same one being renamed
       if (currentState.currentChat?.id == chatId) {
+        debugPrint('🔄 Updating current chat reference');
         final updatedChat = await _chatUseCase.getChat(chatId);
         if (state is ChatLoaded && updatedChat != null) {
-          emit((state as ChatLoaded).copyWith(currentChat: updatedChat));
+          emit(
+            (state as ChatLoaded).copyWith(
+              currentChat: updatedChat,
+              isLoading: false,
+            ),
+          );
+          debugPrint('✅ Current chat reference updated');
+        }
+      } else {
+        // Just clear loading state if we're not updating current chat
+        if (state is ChatLoaded) {
+          emit((state as ChatLoaded).copyWith(isLoading: false));
         }
       }
 
+      // Sync to Firebase if online
       if (currentState.isOnline) {
-        final updatedChat = await _chatUseCase.getChat(chatId);
-        if (updatedChat != null) {
-          await _syncUseCase.syncChat(updatedChat);
+        try {
+          debugPrint('🔄 Syncing renamed chat to Firebase');
+          final updatedChat = await _chatUseCase.getChat(chatId);
+          if (updatedChat != null) {
+            await _syncUseCase.syncChat(updatedChat);
+            debugPrint('✅ Chat synced to Firebase successfully');
+          }
+        } catch (syncError) {
+          debugPrint(
+            '⚠️ Failed to sync to Firebase, but local rename succeeded: $syncError',
+          );
+          // Don't emit error state since local operation succeeded
         }
       }
-    } catch (e) {
-      emit(ChatError(error: 'Failed to rename chat: $e'));
-      debugPrint('Error renaming chat: $e');
+
+      debugPrint('✅ Chat rename operation completed successfully');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error renaming chat: $e');
+      debugPrint('Stack trace: $stackTrace');
+
+      // Clear loading state and emit error
+      if (state is ChatLoaded) {
+        emit((state as ChatLoaded).copyWith(isLoading: false));
+      }
+      emit(ChatError(error: 'Failed to rename chat: ${e.toString()}'));
     }
   }
 

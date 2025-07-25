@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-import '../data/model/chat_model.dart';
-import '../data/model/message_model.dart';
+import '../../model/chat_model.dart';
+import '../../model/message_model.dart';
 
 class DatabaseHelper {
   static const _databaseName = "chat_database.db";
@@ -170,6 +170,7 @@ class DatabaseHelper {
     }
   }
 
+  // Fixed updateChat method in DatabaseHelper
   Future<void> updateChat(ChatModel chat) async {
     try {
       debugPrint('🔄 DatabaseHelper.updateChat called for: ${chat.id}');
@@ -177,25 +178,37 @@ class DatabaseHelper {
 
       Database db = await database;
 
-      final result = await db.update(
-        tableChats,
-        chat.toMap(),
-        where: '$columnChatId = ?',
-        whereArgs: [chat.id],
-      );
-
-      debugPrint('✅ Database update result: $result rows affected');
-
-      if (result == 0) {
-        debugPrint('⚠️ No rows were updated - chat might not exist');
-        // Optionally insert if update failed
-        await db.insert(
+      // Use a transaction to ensure data consistency
+      await db.transaction((txn) async {
+        // First check if the chat exists
+        final existingChat = await txn.query(
           tableChats,
-          chat.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          where: '$columnChatId = ?',
+          whereArgs: [chat.id],
+          limit: 1,
         );
-        debugPrint('✅ Chat inserted instead of updated');
-      }
+
+        if (existingChat.isNotEmpty) {
+          // Chat exists, update it
+          final result = await txn.update(
+            tableChats,
+            chat.toMap(),
+            where: '$columnChatId = ?',
+            whereArgs: [chat.id],
+          );
+          debugPrint('✅ Database update result: $result rows affected');
+        } else {
+          // Chat doesn't exist, insert it
+          await txn.insert(
+            tableChats,
+            chat.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+          debugPrint('✅ Chat inserted instead of updated (didn\'t exist)');
+        }
+      });
+
+      debugPrint('✅ Chat update/insert transaction completed successfully');
     } catch (e, stackTrace) {
       debugPrint('❌ Error updating chat in database: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -552,6 +565,4 @@ class DatabaseHelper {
     }
     return null;
   }
-
-  
 }

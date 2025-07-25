@@ -1,67 +1,133 @@
+// Fixed ChatManagementUseCase with proper rename logic
+import 'package:fake_mind/chat/data/model/chat_model.dart';
 import 'package:fake_mind/chat/domain/repo/chat_repo.dart';
-
-import '../../data/model/chat_model.dart';
+import 'package:flutter/material.dart';
 
 class ChatManagementUseCase {
   final ChatRepository _repository;
 
   ChatManagementUseCase(this._repository);
 
-  Future<List<ChatModel>> getAllChats() => _repository.getAllChats();
-
-  Future<ChatModel?> getChat(String chatId) => _repository.getChat(chatId);
-
-  Future<void> createChat({String? title, String? firstMessage}) async {
-    final chat = ChatModel(
-      title:
-          title ??
-          (firstMessage != null ? _generateTitle(firstMessage) : 'New Chat'),
-    );
-    await _repository.insertChat(chat);
+  Future<List<ChatModel>> getAllChats() async {
+    try {
+      return await _repository.getAllChats();
+    } catch (e) {
+      debugPrint('Error getting all chats: $e');
+      return [];
+    }
   }
 
-  Future<void> renameChat(String chatId, String newName) async {
-    final chat = await _repository.getChat(chatId);
-    if (chat != null) {
-      final updatedChat = chat.copyWith(
-        title: newName.trim(),
+  Future<ChatModel?> getChat(String chatId) async {
+    try {
+      return await _repository.getChat(chatId);
+    } catch (e) {
+      debugPrint('Error getting chat: $e');
+      return null;
+    }
+  }
+
+  Future<ChatModel> createChat({String? title, String? firstMessage}) async {
+    try {
+      final chat = ChatModel(
+        title: title ?? _generateChatTitle(firstMessage),
+        createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
+
+      await _repository.insertChat(chat);
+      debugPrint('✅ Created new chat: ${chat.id} - ${chat.title}');
+      return chat;
+    } catch (e) {
+      debugPrint('❌ Error creating chat: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> renameChat(String chatId, String newTitle) async {
+    try {
+      debugPrint('🏷️ Renaming chat $chatId to: $newTitle');
+
+      // Get the existing chat
+      final existingChat = await _repository.getChat(chatId);
+      if (existingChat == null) {
+        debugPrint('❌ Chat not found: $chatId');
+        throw Exception('Chat not found');
+      }
+
+      // Create updated chat with new title and updated timestamp
+      final updatedChat = existingChat.copyWith(
+        title: newTitle.trim(),
+        updatedAt: DateTime.now(),
+      );
+
+      debugPrint('📝 Updating chat with new data: ${updatedChat.toMap()}');
+
+      // Update the chat in repository
       await _repository.updateChat(updatedChat);
+
+      debugPrint('✅ Successfully renamed chat: $chatId');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error renaming chat: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
     }
   }
 
   Future<void> togglePin(String chatId) async {
-    final chat = await _repository.getChat(chatId);
-    if (chat != null) {
-      final updatedChat = chat.copyWith(isPinned: !chat.isPinned);
+    try {
+      debugPrint('📌 Toggling pin for chat: $chatId');
+
+      final existingChat = await _repository.getChat(chatId);
+      if (existingChat == null) {
+        debugPrint('❌ Chat not found: $chatId');
+        throw Exception('Chat not found');
+      }
+
+      final updatedChat = existingChat.copyWith(
+        isPinned: !existingChat.isPinned,
+        updatedAt: DateTime.now(),
+      );
+
       await _repository.updateChat(updatedChat);
+      debugPrint('✅ Successfully toggled pin for chat: $chatId');
+    } catch (e) {
+      debugPrint('❌ Error toggling pin: $e');
+      rethrow;
     }
   }
 
-  Future<void> deleteChat(String chatId) => _repository.deleteChat(chatId);
+  Future<void> deleteChat(String chatId) async {
+    try {
+      debugPrint('🗑️ Deleting chat: $chatId');
+      await _repository.deleteChat(chatId);
+      debugPrint('✅ Successfully deleted chat: $chatId');
+    } catch (e) {
+      debugPrint('❌ Error deleting chat: $e');
+      rethrow;
+    }
+  }
 
   List<ChatModel> filterChats(List<ChatModel> chats, String query) {
     if (query.isEmpty) return chats;
 
-    return chats.where((chat) {
-      final titleMatch = chat.title.toLowerCase().contains(query.toLowerCase());
-      final messageMatch =
-          chat.lastMessage?.toLowerCase().contains(query.toLowerCase()) ??
-          false;
-      return titleMatch || messageMatch;
-    }).toList();
+    final lowercaseQuery = query.toLowerCase();
+    return chats
+        .where(
+          (chat) =>
+              chat.title.toLowerCase().contains(lowercaseQuery) ||
+              (chat.lastMessage?.toLowerCase().contains(lowercaseQuery) ??
+                  false),
+        )
+        .toList();
   }
 
-  String _generateTitle(String firstMessage) {
-    final cleanMessage = firstMessage.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (cleanMessage.length <= 30) return cleanMessage;
-
-    final words = cleanMessage.substring(0, 30).split(' ');
-    if (words.length > 1) {
-      words.removeLast();
-      return '${words.join(' ')}...';
+  String _generateChatTitle(String? firstMessage) {
+    if (firstMessage != null && firstMessage.isNotEmpty) {
+      // Use first 30 characters of the message as title
+      return firstMessage.length > 30
+          ? '${firstMessage.substring(0, 30)}...'
+          : firstMessage;
     }
-    return '${cleanMessage.substring(0, 30)}...';
+    return 'New Chat ${DateTime.now().millisecondsSinceEpoch}';
   }
 }

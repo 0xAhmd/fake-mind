@@ -3,7 +3,7 @@ import 'package:fake_mind/chat/domain/usecases/chat_managment_usecase.dart';
 
 import '../../domain/usecases/message_usecase.dart';
 import '../../domain/usecases/sync_usecase.dart';
-import '../../data/db_helper.dart';
+import '../../data/services/offline/db_helper.dart';
 import '../../data/services/firebase/firebase_service.dart';
 import '../../data/services/firebase/google_generative_api_service.dart';
 import '../../data/services/offline/connectivity_service.dart';
