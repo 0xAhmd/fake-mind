@@ -1,4 +1,3 @@
-// lib/chat/presentation/widgets/chat_list_app_bar.dart
 import 'package:fake_mind/chat/presentation/cubit/chat_cubit.dart';
 import 'package:fake_mind/chat/presentation/cubit/chat_state.dart';
 import 'package:flutter/material.dart';

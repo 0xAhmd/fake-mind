@@ -1,4 +1,3 @@
-// lib/chat/presentation/widgets/chat_app_bar.dart
 import 'package:fake_mind/chat/presentation/pages/chat_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

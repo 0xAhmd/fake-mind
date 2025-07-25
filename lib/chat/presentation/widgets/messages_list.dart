@@ -1,4 +1,3 @@
-// lib/chat/presentation/widgets/messages_list.dart
 import 'package:fake_mind/chat/presentation/chat_bubble.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

@@ -1,4 +1,3 @@
-// lib/chat/presentation/widgets/delete_chat_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 

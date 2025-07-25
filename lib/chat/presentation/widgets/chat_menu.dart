@@ -1,4 +1,3 @@
-// lib/chat/presentation/widgets/chat_menu.dart
 import 'package:fake_mind/chat/presentation/widgets/delete_chat_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
