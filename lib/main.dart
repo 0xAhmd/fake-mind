@@ -29,7 +29,7 @@ void main() async {
   } catch (e) {
     debugPrint('❌ Firebase initialization failed: $e');
   }
-  runApp( const MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -40,8 +40,13 @@ class MyApp extends StatelessWidget {
     return BlocProvider(
       create: (context) => ChatCubit(),
       child: MaterialApp(
-        title: 'FakeMind Chat',
+        title: 'Fake Mind',
         theme: ThemeData(
+          textSelectionTheme: TextSelectionThemeData(
+            cursorColor: Colors.green,
+            selectionColor: Colors.green.shade200,
+            selectionHandleColor: Colors.green,
+          ),
           fontFamily: GoogleFonts.lato().fontFamily,
           scaffoldBackgroundColor: kScaffoldBackgroundColor,
           appBarTheme: const AppBarTheme(

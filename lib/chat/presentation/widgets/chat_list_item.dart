@@ -28,9 +28,10 @@ class ChatListItem extends StatelessWidget {
         color: const Color(0xff1a1a1a),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: chat.isPinned
-              ? kChatBubbleUser.withOpacity(0.5)
-              : Colors.grey[800]!,
+          color:
+              chat.isPinned
+                  ? kChatBubbleUser.withOpacity(0.5)
+                  : Colors.grey[800]!,
           width: chat.isPinned ? 2 : 1,
         ),
       ),
@@ -51,39 +52,37 @@ class ChatListItem extends StatelessWidget {
   }
 
   Widget _buildLeadingIcon() {
-    return Stack(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: kChatBubbleUser.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: const Icon(
-            Icons.chat_bubble,
-            color: kChatBubbleUser,
-            size: 24,
-          ),
-        ),
-        if (chat.isPinned)
-          Positioned(
-            right: -2,
-            top: -2,
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                color: kChatBubbleUser,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.push_pin,
-                size: 12,
-                color: Colors.white,
-              ),
+    return SizedBox(
+      width: 52, // add a bit of space to allow the icon to overflow
+      height: 52,
+      child: Stack(
+        clipBehavior: Clip.none, // important: allow overflow
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: kChatBubbleUser.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(
+              Icons.chat_bubble,
+              color: kChatBubbleUser,
+              size: 24,
             ),
           ),
-      ],
+          if (chat.isPinned)
+            const Positioned(
+              right: -4, // slight overlap
+              top: -4,
+              child: CircleAvatar(
+                radius: 7,
+                backgroundColor: kChatBubbleUser,
+                child: Icon(Icons.push_pin, size: 9, color: Colors.white),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
