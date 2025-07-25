@@ -13,7 +13,6 @@
 ## ✨ Features
 
 - 💬 AI-powered interactive chatbot
-- 🧠 Context-aware responses using **Gemini API**
 - 📝 Supports **Markdown-formatted** output
 - 🖼️ Clean and minimal **Flutter UI**
 - 📱 Fully responsive and user-friendly design
