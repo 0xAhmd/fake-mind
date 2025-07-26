@@ -4,8 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class ChatSearchBar extends StatelessWidget {
+class ChatSearchBar extends StatefulWidget {
   const ChatSearchBar({super.key});
+
+  @override
+  State<ChatSearchBar> createState() => _ChatSearchBarState();
+}
+
+class _ChatSearchBarState extends State<ChatSearchBar> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    context.read<ChatCubit>().searchChats('');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,6 +34,7 @@ class ChatSearchBar extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: TextField(
+            controller: _searchController,
             onChanged: (query) => context.read<ChatCubit>().searchChats(query),
             style: GoogleFonts.inter(color: Colors.white),
             decoration: InputDecoration(
@@ -26,8 +45,7 @@ class ChatSearchBar extends StatelessWidget {
                   state.searchQuery.isNotEmpty
                       ? IconButton(
                         icon: Icon(Icons.clear, color: Colors.grey[500]),
-                        onPressed:
-                            () => context.read<ChatCubit>().searchChats(''),
+                        onPressed: _clearSearch,
                       )
                       : null,
               filled: true,

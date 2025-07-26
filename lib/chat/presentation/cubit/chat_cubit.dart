@@ -295,7 +295,7 @@ class ChatCubit extends Cubit<ChatState> {
 
     if (newName.trim().isEmpty) {
       debugPrint('❌ Cannot rename chat: Empty name');
-      emit(ChatError(error: 'Chat name cannot be empty'));
+      emit(const ChatError(error: 'Chat name cannot be empty'));
       return;
     }
 
@@ -650,7 +650,7 @@ class ChatCubit extends Cubit<ChatState> {
 
       // Create error message to replace the failed one
       try {
-        final errorResponse =
+        const errorResponse =
             'Sorry, I couldn\'t regenerate this response. Please try again.';
         final errorMessage = await _messageUseCase.regenerateBotMessage(
           messageId: messageId,
@@ -724,7 +724,7 @@ class ChatCubit extends Cubit<ChatState> {
         await Future.delayed(delay);
         return await _sendMessageWithRetry(content, attempt: attempt + 1);
       } else {
-        throw e;
+        rethrow;
       }
     }
   }
@@ -735,8 +735,9 @@ class ChatCubit extends Cubit<ChatState> {
     final currentState = state as ChatLoaded;
     if (!currentState.isOnline ||
         !_isAuthenticationComplete ||
-        currentState.isRetrying)
+        currentState.isRetrying) {
       return;
+    }
 
     emit(currentState.copyWith(isRetrying: true));
 

@@ -9,22 +9,32 @@ class ChatEmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isSearching = searchQuery.isNotEmpty;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset(emptyStateImg, width: 130, color: Colors.white),
-          const SizedBox(height: 16),
-          Text(
-            searchQuery.isEmpty ? 'No chats yet' : 'No chats found',
-            style: GoogleFonts.inter(fontSize: 20, color: Colors.grey[400]),
+          Image.asset(
+            isSearching ? emptySearchStateImg : emptyStateImg,
+            width: 130,
+            color: Colors.white.withOpacity(0.7),
           ),
 
           Text(
-            searchQuery.isEmpty
-                ? 'Start a new conversation'
-                : 'Try a different search term',
-            style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
+            isSearching ? 'No Chats Found' : 'No chats yet',
+            style: GoogleFonts.inter(
+              fontSize: 22,
+              color: Colors.grey[300],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+
+          Text(
+            isSearching
+                ? 'Try another search query'
+                : 'Start a new conversation',
+            style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[500]),
           ),
         ],
       ),
