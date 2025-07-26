@@ -9,6 +9,7 @@ import '../../domain/usecases/message_usecase.dart';
 import '../../domain/usecases/sync_usecase.dart';
 import '../../data/services/firebase/google_generative_api_service.dart';
 import '../../data/services/offline/connectivity_service.dart';
+import '../../data/services/firebase/firebase_service.dart';
 import '../../data/model/message_model.dart';
 import 'chat_state.dart';
 
@@ -18,11 +19,13 @@ class ChatCubit extends Cubit<ChatState> {
   final SyncUseCase _syncUseCase;
   final GoogleGenerativeApiService _apiService;
   final ConnectivityService _connectivityService;
+  final FirebaseService _firebaseService; // Add this
   final ChatRepository chatRepository;
 
   StreamSubscription<bool>? _connectivitySubscription;
   StreamSubscription<List<MessageModel>>? _messageStreamSubscription;
   Timer? _syncTimer;
+  bool _isAuthenticationComplete = false; // Track auth status
 
   ChatCubit({
     required this.chatRepository,
@@ -31,24 +34,31 @@ class ChatCubit extends Cubit<ChatState> {
     required SyncUseCase syncUseCase,
     required GoogleGenerativeApiService apiService,
     required ConnectivityService connectivityService,
+    required FirebaseService firebaseService, // Add this parameter
   }) : _chatUseCase = chatUseCase,
        _messageUseCase = messageUseCase,
        _syncUseCase = syncUseCase,
        _apiService = apiService,
        _connectivityService = connectivityService,
+       _firebaseService = firebaseService, // Initialize this
        super(const ChatInitial()) {
     _initialize();
   }
 
   Future<void> _initialize() async {
     try {
-      _connectivitySubscription = _connectivityService.connectivityStream
-          .listen(_onConnectivityChanged);
-
+      // First, check connectivity
       final isOnline = await _connectivityService.hasConnection();
+
+      // Load local data first (this should always work)
       final chatHistory = await _chatUseCase.getAllChats();
       final statistics = await _getStatistics();
 
+      // Set up connectivity listener
+      _connectivitySubscription = _connectivityService.connectivityStream
+          .listen(_onConnectivityChanged);
+
+      // Emit initial state with local data
       emit(
         ChatLoaded(
           chatHistory: chatHistory,
@@ -58,14 +68,42 @@ class ChatCubit extends Cubit<ChatState> {
         ),
       );
 
+      // If online, attempt authentication and sync
       if (isOnline) {
-        await _performSync();
+        await _authenticateAndSync();
       }
 
+      // Start periodic sync timer (but it will only work when authenticated)
       _startPeriodicSync();
     } catch (e) {
       emit(ChatError(error: 'Failed to initialize: $e'));
       debugPrint('Error initializing ChatCubit: $e');
+    }
+  }
+
+  /// Handle authentication and initial sync
+  Future<void> _authenticateAndSync() async {
+    try {
+      debugPrint('🔐 Starting authentication process...');
+
+      // Attempt anonymous sign-in
+      final _ = await _firebaseService.signInAnonymously();
+
+      if (_firebaseService.isAuthenticated) {
+        _isAuthenticationComplete = true;
+        debugPrint('✅ Authentication completed successfully');
+
+        // Now perform sync
+        await _performSync();
+        await retryFailedMessages();
+      } else {
+        debugPrint('❌ Authentication failed');
+        _isAuthenticationComplete = false;
+      }
+    } catch (e) {
+      debugPrint('❌ Authentication error: $e');
+      _isAuthenticationComplete = false;
+      // Don't emit error state - app should still work offline
     }
   }
 
@@ -75,15 +113,20 @@ class ChatCubit extends Cubit<ChatState> {
       emit(currentState.copyWith(isOnline: isOnline));
 
       if (isOnline && !currentState.isOnline) {
-        await _performSync();
-        await retryFailedMessages();
+        // Connection restored - authenticate and sync
+        await _authenticateAndSync();
+      } else if (!isOnline) {
+        // Connection lost - reset auth status
+        _isAuthenticationComplete = false;
       }
     }
   }
 
   void _startPeriodicSync() {
     _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
-      if (state is ChatLoaded && (state as ChatLoaded).isOnline) {
+      if (state is ChatLoaded &&
+          (state as ChatLoaded).isOnline &&
+          _isAuthenticationComplete) {
         _performSync();
       }
     });
@@ -92,8 +135,16 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> _performSync() async {
     if (state is! ChatLoaded) return;
 
+    // Check if we're authenticated before attempting sync
+    if (!_isAuthenticationComplete || !_firebaseService.isAuthenticated) {
+      debugPrint('⏳ Skipping sync - authentication not complete');
+      return;
+    }
+
     final currentState = state as ChatLoaded;
     try {
+      debugPrint('🔄 Starting sync process...');
+
       await _syncUseCase.syncToFirebase(
         currentState.chatHistory,
         currentState.messages,
@@ -112,8 +163,15 @@ class ChatCubit extends Cubit<ChatState> {
                   ),
         ),
       );
+
+      debugPrint('✅ Sync completed successfully');
     } catch (e) {
-      debugPrint('Sync error: $e');
+      debugPrint('❌ Sync error: $e');
+
+      // If auth failed, reset auth status
+      if (e.toString().contains('not authenticated')) {
+        _isAuthenticationComplete = false;
+      }
     }
   }
 
@@ -170,8 +228,8 @@ class ChatCubit extends Cubit<ChatState> {
 
       debugPrint('✅ Chat history loaded successfully');
 
-      // Perform sync if online
-      if (currentState.isOnline) {
+      // Perform sync if online AND authenticated
+      if (currentState.isOnline && _isAuthenticationComplete) {
         debugPrint('🔄 Performing sync after load...');
         await _performSync();
       }
@@ -276,8 +334,8 @@ class ChatCubit extends Cubit<ChatState> {
         }
       }
 
-      // Sync to Firebase if online
-      if (currentState.isOnline) {
+      // Sync to Firebase if online AND authenticated
+      if (currentState.isOnline && _isAuthenticationComplete) {
         try {
           debugPrint('🔄 Syncing renamed chat to Firebase');
           final updatedChat = await _chatUseCase.getChat(chatId);
@@ -323,7 +381,8 @@ class ChatCubit extends Cubit<ChatState> {
         }
       }
 
-      if (currentState.isOnline) {
+      // Only sync if authenticated
+      if (currentState.isOnline && _isAuthenticationComplete) {
         final updatedChat = await _chatUseCase.getChat(chatId);
         if (updatedChat != null) {
           await _syncUseCase.syncChat(updatedChat);
@@ -369,7 +428,8 @@ class ChatCubit extends Cubit<ChatState> {
         final messages = await _messageUseCase.getMessagesForChat(chatId);
         emit(currentState.copyWith(currentChat: chat, messages: messages));
 
-        if (currentState.isOnline) {
+        // Only set up Firebase stream if authenticated
+        if (currentState.isOnline && _isAuthenticationComplete) {
           _messageStreamSubscription = _syncUseCase
               .getMessageStream(chatId)
               .listen(
@@ -413,7 +473,7 @@ class ChatCubit extends Cubit<ChatState> {
     final userMessage = _messageUseCase.createUserMessage(
       currentState.currentChat!.id,
       content,
-      currentState.isOnline,
+      currentState.isOnline && _isAuthenticationComplete,
     );
 
     // Add user message immediately
@@ -422,7 +482,8 @@ class ChatCubit extends Cubit<ChatState> {
 
     await _messageUseCase.saveMessage(userMessage);
 
-    if (currentState.isOnline) {
+    // Only sync if authenticated
+    if (currentState.isOnline && _isAuthenticationComplete) {
       try {
         await _syncUseCase.syncMessage(userMessage);
         await _messageUseCase.markAsSynced(userMessage.id);
@@ -443,13 +504,14 @@ class ChatCubit extends Cubit<ChatState> {
       final responseMessage = _messageUseCase.createBotMessage(
         currentState.currentChat!.id,
         response,
-        currentState.isOnline,
+        currentState.isOnline && _isAuthenticationComplete,
       );
 
       final finalMessages = [...updatedMessages, responseMessage];
       await _messageUseCase.saveMessage(responseMessage);
 
-      if (currentState.isOnline) {
+      // Only sync if authenticated
+      if (currentState.isOnline && _isAuthenticationComplete) {
         try {
           await _syncUseCase.syncMessage(responseMessage);
           await _messageUseCase.markAsSynced(responseMessage.id);
@@ -479,7 +541,7 @@ class ChatCubit extends Cubit<ChatState> {
     if (state is! ChatLoaded) return;
 
     final currentState = state as ChatLoaded;
-    if (!currentState.isOnline) {
+    if (!currentState.isOnline || !_isAuthenticationComplete) {
       _showOfflineMessage();
       return;
     }
@@ -601,7 +663,7 @@ class ChatCubit extends Cubit<ChatState> {
 
   void _showOfflineMessage() {
     // This would typically show a snackbar or toast
-    debugPrint('Cannot retry message while offline');
+    debugPrint('Cannot retry message while offline or not authenticated');
   }
 
   Future<String> _sendMessageWithRetry(
@@ -630,7 +692,10 @@ class ChatCubit extends Cubit<ChatState> {
     if (state is! ChatLoaded) return;
 
     final currentState = state as ChatLoaded;
-    if (!currentState.isOnline || currentState.isRetrying) return;
+    if (!currentState.isOnline ||
+        !_isAuthenticationComplete ||
+        currentState.isRetrying)
+      return;
 
     emit(currentState.copyWith(isRetrying: true));
 

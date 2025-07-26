@@ -34,6 +34,7 @@ class ChatCubitFactory {
       syncUseCase: syncUseCase,
       apiService: apiService,
       connectivityService: connectivityService,
+      firebaseService: firebaseService, // Add this line
     );
   }
 }
