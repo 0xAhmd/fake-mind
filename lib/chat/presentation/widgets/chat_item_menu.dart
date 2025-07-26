@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../../data/model/chat_model.dart';
-import '../../../../constants.dart';
 
 class ChatItemMenu extends StatelessWidget {
   final ChatModel chat;
@@ -22,6 +22,7 @@ class ChatItemMenu extends StatelessWidget {
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_vert, color: Colors.grey[400]),
       color: const Color(0xff2a2a2a),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: (value) {
         switch (value) {
           case 'rename':
@@ -37,14 +38,14 @@ class ChatItemMenu extends StatelessWidget {
       },
       itemBuilder:
           (context) => [
-            _buildMenuItem('rename', Icons.edit, 'Rename', kChatBubbleUser),
+            _buildMenuItem('rename', Icons.edit, 'Rename', Colors.white),
             _buildMenuItem(
               'pin',
               chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
               chat.isPinned ? 'Unpin' : 'Pin',
-              kChatBubbleUser,
+              Colors.white,
             ),
-            _buildMenuItem('delete', Icons.delete, 'Delete', Colors.red),
+            _buildMenuItem('delete', Icons.delete, 'Delete', Colors.redAccent),
           ],
     );
   }
@@ -60,8 +61,15 @@ class ChatItemMenu extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: color, size: 20),
-          const SizedBox(width: 8),
-          Text(text, style: GoogleFonts.inter(color: color)),
+          const SizedBox(width: 10),
+          Text(
+            text,
+            style: GoogleFonts.inter(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

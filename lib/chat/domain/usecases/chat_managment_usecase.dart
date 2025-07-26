@@ -1,4 +1,4 @@
-// Fixed ChatManagementUseCase with proper rename logic
+// Fixed ChatManagementUseCase with proper sorting and better create logic
 import 'package:fake_mind/chat/data/model/chat_model.dart';
 import 'package:fake_mind/chat/domain/repo/chat_repo.dart';
 import 'package:flutter/material.dart';
@@ -10,11 +10,26 @@ class ChatManagementUseCase {
 
   Future<List<ChatModel>> getAllChats() async {
     try {
-      return await _repository.getAllChats();
+      final chats = await _repository.getAllChats();
+      // Additional sorting to ensure consistency (pinned chats first, then by date)
+      return _sortChats(chats);
     } catch (e) {
       debugPrint('Error getting all chats: $e');
       return [];
     }
+  }
+
+  List<ChatModel> _sortChats(List<ChatModel> chats) {
+    // First separate pinned and unpinned chats
+    final pinnedChats = chats.where((chat) => chat.isPinned).toList();
+    final unpinnedChats = chats.where((chat) => !chat.isPinned).toList();
+
+    // Sort both lists by updatedAt (newest first)
+    pinnedChats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    unpinnedChats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    // Return pinned chats first, then unpinned
+    return [...pinnedChats, ...unpinnedChats];
   }
 
   Future<ChatModel?> getChat(String chatId) async {
@@ -111,14 +126,18 @@ class ChatManagementUseCase {
     if (query.isEmpty) return chats;
 
     final lowercaseQuery = query.toLowerCase();
-    return chats
-        .where(
-          (chat) =>
-              chat.title.toLowerCase().contains(lowercaseQuery) ||
-              (chat.lastMessage?.toLowerCase().contains(lowercaseQuery) ??
-                  false),
-        )
-        .toList();
+    final filtered =
+        chats
+            .where(
+              (chat) =>
+                  chat.title.toLowerCase().contains(lowercaseQuery) ||
+                  (chat.lastMessage?.toLowerCase().contains(lowercaseQuery) ??
+                      false),
+            )
+            .toList();
+
+    // Maintain sorting even after filtering
+    return _sortChats(filtered);
   }
 
   String _generateChatTitle(String? firstMessage) {

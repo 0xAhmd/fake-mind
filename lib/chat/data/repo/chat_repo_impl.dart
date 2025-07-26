@@ -10,7 +10,12 @@ class ChatRepositoryImpl implements ChatRepository {
   ChatRepositoryImpl(this._databaseHelper);
 
   @override
-  Future<List<ChatModel>> getAllChats() => _databaseHelper.getAllChats();
+  Future<List<ChatModel>> getAllChats() async {
+    final chats = await _databaseHelper.getAllChats();
+    // Sort chats by updated_at in descending order (newest first)
+    chats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return chats;
+  }
 
   @override
   Future<ChatModel?> getChat(String chatId) => _databaseHelper.getChat(chatId);

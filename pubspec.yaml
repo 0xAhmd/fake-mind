@@ -50,6 +50,7 @@ dependencies:
   flutter_bloc: ^9.1.1
   equatable: ^2.0.7
   bloc_test: ^10.0.0
+  quickalert: ^1.1.0
   
 
 dev_dependencies:

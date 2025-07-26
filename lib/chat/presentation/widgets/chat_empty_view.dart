@@ -18,7 +18,6 @@ class ChatEmptyView extends StatelessWidget {
           Image.asset(
             isSearching ? emptySearchStateImg : emptyStateImg,
             width: 130,
-            color: Colors.white.withOpacity(0.7),
           ),
 
           Text(
