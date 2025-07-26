@@ -4,6 +4,7 @@ import 'package:fake_mind/chat/presentation/widgets/chat_empty_view.dart';
 import 'package:fake_mind/chat/presentation/widgets/chat_err_view.dart';
 import 'package:fake_mind/chat/presentation/widgets/chat_list_view.dart';
 import 'package:fake_mind/chat/presentation/widgets/chat_search_bar.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -29,6 +30,7 @@ class ChatListBody extends StatelessWidget {
           return Column(
             children: [
               if (state.chatHistory.isNotEmpty) const ChatSearchBar(),
+              const SizedBox(height: 3),
               Expanded(child: ChatListView(chats: chats)),
             ],
           );
@@ -39,7 +41,7 @@ class ChatListBody extends StatelessWidget {
         }
 
         return const Center(
-          child: CircularProgressIndicator(color: kChatBubbleUser),
+          child: CupertinoActivityIndicator(color: kChatBubbleUser),
         );
       },
     );

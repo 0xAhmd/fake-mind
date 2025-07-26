@@ -10,7 +10,7 @@ class ChatListAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.only(left: 12, right: 4),
       child: AppBar(
         leadingWidth: 45,
         leading: Image.asset("assets/logo.png", color: Colors.white),

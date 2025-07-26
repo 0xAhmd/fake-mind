@@ -3,6 +3,7 @@ import 'package:fake_mind/chat/presentation/cubit/chat_state.dart';
 import 'package:fake_mind/chat/presentation/pages/chat_page.dart';
 import 'package:fake_mind/chat/presentation/widgets/chat_dialogs.dart';
 import 'package:fake_mind/chat/presentation/widgets/chat_list_item.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/model/chat_model.dart';
@@ -25,7 +26,7 @@ class ChatListView extends StatelessWidget {
         builder: (context, state) {
           if (state is ChatLoaded && state.isLoading) {
             return const Center(
-              child: CircularProgressIndicator(color: kChatBubbleUser),
+              child: CupertinoActivityIndicator(color: kChatBubbleUser),
             );
           }
 

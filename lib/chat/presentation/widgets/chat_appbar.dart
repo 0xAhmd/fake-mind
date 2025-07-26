@@ -71,7 +71,7 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.history, color: Colors.white),
+          icon: const Icon(Icons.history_toggle_off, color: Colors.white),
           onPressed: () {
             Navigator.push(
               context,

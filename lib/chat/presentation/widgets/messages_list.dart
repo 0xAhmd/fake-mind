@@ -1,4 +1,5 @@
 import 'package:fake_mind/chat/presentation/widgets/chat_bubble.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -43,7 +44,7 @@ class MessagesList extends StatelessWidget {
         }
 
         return const Center(
-          child: CircularProgressIndicator(color: kChatBubbleUser),
+          child: CupertinoActivityIndicator(color: kChatBubbleUser),
         );
       },
     );
@@ -59,16 +60,16 @@ class MessagesList extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[600]),
-          const SizedBox(height: 16),
+          Image.asset(startStateImg, width: 84, color: Colors.white),
+          const SizedBox(height: 10),
           Text(
             'Start a conversation',
-            style: GoogleFonts.inter(fontSize: 18, color: Colors.grey[400]),
+            style: GoogleFonts.inter(fontSize: 20, color: Colors.grey[400]),
           ),
-          const SizedBox(height: 8),
+
           Text(
             'Type a message below to begin',
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+            style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
           ),
         ],
       ),
