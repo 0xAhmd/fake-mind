@@ -18,7 +18,7 @@ class ChatEmptyView extends StatelessWidget {
             searchQuery.isEmpty ? 'No chats yet' : 'No chats found',
             style: GoogleFonts.inter(fontSize: 18, color: Colors.grey[400]),
           ),
-          const SizedBox(height: 8),
+
           Text(
             searchQuery.isEmpty
                 ? 'Start a new conversation'

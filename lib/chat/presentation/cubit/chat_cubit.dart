@@ -87,7 +87,7 @@ class ChatCubit extends Cubit<ChatState> {
       debugPrint('🔐 Starting authentication process...');
 
       // Attempt anonymous sign-in
-      final result = await _firebaseService.signInAnonymously();
+      final _ = await _firebaseService.signInAnonymously();
 
       if (_firebaseService.isAuthenticated) {
         _isAuthenticationComplete = true;
