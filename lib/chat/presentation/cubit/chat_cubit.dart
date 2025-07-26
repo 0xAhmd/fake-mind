@@ -11,6 +11,7 @@ import '../../data/services/firebase/google_generative_api_service.dart';
 import '../../data/services/offline/connectivity_service.dart';
 import '../../data/services/firebase/firebase_service.dart';
 import '../../data/model/message_model.dart';
+import '../../data/model/chat_model.dart';
 import 'chat_state.dart';
 
 class ChatCubit extends Cubit<ChatState> {
@@ -19,13 +20,13 @@ class ChatCubit extends Cubit<ChatState> {
   final SyncUseCase _syncUseCase;
   final GoogleGenerativeApiService _apiService;
   final ConnectivityService _connectivityService;
-  final FirebaseService _firebaseService; // Add this
+  final FirebaseService _firebaseService;
   final ChatRepository chatRepository;
 
   StreamSubscription<bool>? _connectivitySubscription;
   StreamSubscription<List<MessageModel>>? _messageStreamSubscription;
   Timer? _syncTimer;
-  bool _isAuthenticationComplete = false; // Track auth status
+  bool _isAuthenticationComplete = false;
 
   ChatCubit({
     required this.chatRepository,
@@ -34,13 +35,13 @@ class ChatCubit extends Cubit<ChatState> {
     required SyncUseCase syncUseCase,
     required GoogleGenerativeApiService apiService,
     required ConnectivityService connectivityService,
-    required FirebaseService firebaseService, // Add this parameter
+    required FirebaseService firebaseService,
   }) : _chatUseCase = chatUseCase,
        _messageUseCase = messageUseCase,
        _syncUseCase = syncUseCase,
        _apiService = apiService,
        _connectivityService = connectivityService,
-       _firebaseService = firebaseService, // Initialize this
+       _firebaseService = firebaseService,
        super(const ChatInitial()) {
     _initialize();
   }
@@ -52,6 +53,7 @@ class ChatCubit extends Cubit<ChatState> {
 
       // Load local data first (this should always work)
       final chatHistory = await _chatUseCase.getAllChats();
+      final sortedChats = _sortChatsWithPinnedFirst(chatHistory);
       final statistics = await _getStatistics();
 
       // Set up connectivity listener
@@ -61,8 +63,8 @@ class ChatCubit extends Cubit<ChatState> {
       // Emit initial state with local data
       emit(
         ChatLoaded(
-          chatHistory: chatHistory,
-          filteredChats: chatHistory,
+          chatHistory: sortedChats,
+          filteredChats: sortedChats,
           statistics: statistics,
           isOnline: isOnline,
         ),
@@ -150,15 +152,16 @@ class ChatCubit extends Cubit<ChatState> {
         currentState.messages,
       );
       final updatedChats = await _syncUseCase.syncFromFirebase();
+      final sortedChats = _sortChatsWithPinnedFirst(updatedChats);
 
       emit(
         currentState.copyWith(
-          chatHistory: updatedChats,
+          chatHistory: sortedChats,
           filteredChats:
               currentState.searchQuery.isEmpty
-                  ? updatedChats
+                  ? sortedChats
                   : _chatUseCase.filterChats(
-                    updatedChats,
+                    sortedChats,
                     currentState.searchQuery,
                   ),
         ),
@@ -184,7 +187,22 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
-  // FIXED: Load chat history method
+  /// Helper method to sort chats with pinned ones first
+  List<ChatModel> _sortChatsWithPinnedFirst(List<ChatModel> chats) {
+    final pinnedChats = chats.where((chat) => chat.isPinned).toList();
+    final unpinnedChats = chats.where((chat) => !chat.isPinned).toList();
+
+    // Sort pinned chats by updatedAt (most recent first)
+    pinnedChats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    // Sort unpinned chats by updatedAt (most recent first)
+    unpinnedChats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    // Return pinned chats first, then unpinned chats
+    return [...pinnedChats, ...unpinnedChats];
+  }
+
+  // Load chat history method
   Future<void> loadChatHistory() async {
     try {
       if (state is! ChatLoaded) {
@@ -201,15 +219,18 @@ class ChatCubit extends Cubit<ChatState> {
 
       debugPrint('🔄 Loading chat history...');
 
-      // Load chats from repository (already sorted)
+      // Load chats from repository
       final localChats = await _chatUseCase.getAllChats();
       debugPrint('✅ Loaded ${localChats.length} chats from local database');
+
+      // Apply proper sorting to ensure pinned chats are first
+      final sortedChats = _sortChatsWithPinnedFirst(localChats);
 
       // Apply current search filter
       final filteredChats =
           currentState.searchQuery.isEmpty
-              ? localChats
-              : _chatUseCase.filterChats(localChats, currentState.searchQuery);
+              ? sortedChats
+              : _chatUseCase.filterChats(sortedChats, currentState.searchQuery);
 
       debugPrint('📊 Filtered to ${filteredChats.length} chats');
 
@@ -219,7 +240,7 @@ class ChatCubit extends Cubit<ChatState> {
       // Update state with new data
       emit(
         currentState.copyWith(
-          chatHistory: localChats,
+          chatHistory: sortedChats,
           filteredChats: filteredChats,
           statistics: statistics,
           isLoading: false,
@@ -248,15 +269,32 @@ class ChatCubit extends Cubit<ChatState> {
     if (state is! ChatLoaded) return;
 
     try {
-      final _ = state as ChatLoaded;
+      final currentState = state as ChatLoaded;
       debugPrint('🆕 Creating new chat with message: $firstMessage');
 
       // Create the new chat
       final newChat = await _chatUseCase.createChat(firstMessage: firstMessage);
       debugPrint('✅ New chat created: ${newChat.id} - ${newChat.title}');
 
-      // Reload chat history to get updated list
-      await loadChatHistory();
+      // Instead of reloading everything, manually update the state
+      final updatedChatHistory = [newChat, ...currentState.chatHistory];
+
+      // Apply proper sorting to maintain pinned items at top
+      final sortedChats = _sortChatsWithPinnedFirst(updatedChatHistory);
+
+      // Update the state with sorted chats
+      emit(
+        currentState.copyWith(
+          chatHistory: sortedChats,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? sortedChats
+                  : _chatUseCase.filterChats(
+                    sortedChats,
+                    currentState.searchQuery,
+                  ),
+        ),
+      );
 
       // Switch to the new chat immediately
       await switchToChat(newChat.id);
@@ -265,6 +303,13 @@ class ChatCubit extends Cubit<ChatState> {
       // If there's a first message, send it
       if (firstMessage != null && firstMessage.trim().isNotEmpty) {
         await sendMessage(firstMessage);
+      }
+
+      // Sync in background if online and authenticated
+      if (currentState.isOnline && _isAuthenticationComplete) {
+        _performSync().catchError((e) {
+          debugPrint('Background sync failed: $e');
+        });
       }
     } catch (e) {
       emit(ChatError(error: 'Failed to create chat: $e'));
@@ -276,26 +321,50 @@ class ChatCubit extends Cubit<ChatState> {
     if (state is! ChatLoaded) return;
 
     try {
-      final _ = state as ChatLoaded;
+      final currentState = state as ChatLoaded;
       debugPrint('🆕 Creating new chat with name: $chatName');
 
       // Create the new chat with the specified name
       final newChat = await _chatUseCase.createChat(title: chatName.trim());
       debugPrint('✅ New chat created: ${newChat.id} - ${newChat.title}');
 
-      // Reload chat history to get updated list
-      await loadChatHistory();
+      // Instead of reloading everything, manually update the state
+      final updatedChatHistory = [newChat, ...currentState.chatHistory];
+
+      // Apply proper sorting to maintain pinned items at top
+      final sortedChats = _sortChatsWithPinnedFirst(updatedChatHistory);
+
+      // Update the state with sorted chats
+      emit(
+        currentState.copyWith(
+          chatHistory: sortedChats,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? sortedChats
+                  : _chatUseCase.filterChats(
+                    sortedChats,
+                    currentState.searchQuery,
+                  ),
+        ),
+      );
 
       // Switch to the new chat and update current state
       await switchToChat(newChat.id);
       debugPrint('✅ Switched to new chat: ${newChat.id}');
+
+      // Sync in background if online and authenticated
+      if (currentState.isOnline && _isAuthenticationComplete) {
+        _performSync().catchError((e) {
+          debugPrint('Background sync failed: $e');
+        });
+      }
     } catch (e) {
       emit(ChatError(error: 'Failed to create chat: $e'));
       debugPrint('Error creating new chat with name: $e');
     }
   }
 
-  // Fixed renameChat method in ChatCubit
+  // Fixed renameChat method
   Future<void> renameChat(String chatId, String newName) async {
     if (state is! ChatLoaded) {
       debugPrint('❌ Cannot rename chat: Invalid state');
@@ -319,44 +388,49 @@ class ChatCubit extends Cubit<ChatState> {
       await _chatUseCase.renameChat(chatId, newName.trim());
       debugPrint('✅ Chat renamed successfully in use case');
 
-      // Reload chat history to get updated data
-      await loadChatHistory();
-      debugPrint('✅ Chat history reloaded after rename');
-
-      // Update current chat if it's the same one being renamed
-      if (currentState.currentChat?.id == chatId) {
-        debugPrint('🔄 Updating current chat reference');
-        final updatedChat = await _chatUseCase.getChat(chatId);
-        if (state is ChatLoaded && updatedChat != null) {
-          emit(
-            (state as ChatLoaded).copyWith(
-              currentChat: updatedChat,
-              isLoading: false,
-            ),
-          );
-          debugPrint('✅ Current chat reference updated');
-        }
-      } else {
-        // Just clear loading state if we're not updating current chat
-        if (state is ChatLoaded) {
-          emit((state as ChatLoaded).copyWith(isLoading: false));
-        }
+      // Get the updated chat
+      final updatedChat = await _chatUseCase.getChat(chatId);
+      if (updatedChat == null) {
+        throw Exception('Chat not found after rename');
       }
+
+      // Update the chat in the current list and maintain sorting
+      final updatedChatHistory =
+          currentState.chatHistory.map((chat) {
+            return chat.id == chatId ? updatedChat : chat;
+          }).toList();
+
+      final sortedChats = _sortChatsWithPinnedFirst(updatedChatHistory);
+
+      // Update state
+      emit(
+        currentState.copyWith(
+          chatHistory: sortedChats,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? sortedChats
+                  : _chatUseCase.filterChats(
+                    sortedChats,
+                    currentState.searchQuery,
+                  ),
+          currentChat:
+              currentState.currentChat?.id == chatId
+                  ? updatedChat
+                  : currentState.currentChat,
+          isLoading: false,
+        ),
+      );
 
       // Sync to Firebase if online AND authenticated
       if (currentState.isOnline && _isAuthenticationComplete) {
         try {
           debugPrint('🔄 Syncing renamed chat to Firebase');
-          final updatedChat = await _chatUseCase.getChat(chatId);
-          if (updatedChat != null) {
-            await _syncUseCase.syncChat(updatedChat);
-            debugPrint('✅ Chat synced to Firebase successfully');
-          }
+          await _syncUseCase.syncChat(updatedChat);
+          debugPrint('✅ Chat synced to Firebase successfully');
         } catch (syncError) {
           debugPrint(
             '⚠️ Failed to sync to Firebase, but local rename succeeded: $syncError',
           );
-          // Don't emit error state since local operation succeeded
         }
       }
 
@@ -380,21 +454,43 @@ class ChatCubit extends Cubit<ChatState> {
       final currentState = state as ChatLoaded;
       await _chatUseCase.togglePin(chatId);
 
-      await loadChatHistory();
+      // Get the updated chat
+      final updatedChat = await _chatUseCase.getChat(chatId);
+      if (updatedChat == null) return;
 
-      // Update current chat if it's the same one
-      if (currentState.currentChat?.id == chatId) {
-        final updatedChat = await _chatUseCase.getChat(chatId);
-        if (state is ChatLoaded && updatedChat != null) {
-          emit((state as ChatLoaded).copyWith(currentChat: updatedChat));
-        }
-      }
+      // Update the chat in the list
+      final updatedChatHistory =
+          currentState.chatHistory.map((chat) {
+            return chat.id == chatId ? updatedChat : chat;
+          }).toList();
+
+      // Apply proper sorting
+      final sortedChats = _sortChatsWithPinnedFirst(updatedChatHistory);
+
+      // Update state
+      emit(
+        currentState.copyWith(
+          chatHistory: sortedChats,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? sortedChats
+                  : _chatUseCase.filterChats(
+                    sortedChats,
+                    currentState.searchQuery,
+                  ),
+          currentChat:
+              currentState.currentChat?.id == chatId
+                  ? updatedChat
+                  : currentState.currentChat,
+        ),
+      );
 
       // Only sync if authenticated
       if (currentState.isOnline && _isAuthenticationComplete) {
-        final updatedChat = await _chatUseCase.getChat(chatId);
-        if (updatedChat != null) {
+        try {
           await _syncUseCase.syncChat(updatedChat);
+        } catch (e) {
+          debugPrint('Failed to sync pinned chat: $e');
         }
       }
     } catch (e) {
@@ -429,28 +525,44 @@ class ChatCubit extends Cubit<ChatState> {
         }
       }
 
-      // Reload chat history
-      await loadChatHistory();
+      // Remove from current state and maintain sorting
+      final updatedChatHistory =
+          currentState.chatHistory.where((chat) => chat.id != chatId).toList();
+      final sortedChats = _sortChatsWithPinnedFirst(updatedChatHistory);
+
+      // Update statistics
+      final statistics = await _getStatistics();
 
       // Clear current chat if it was deleted
+      final updatedCurrentChat =
+          currentState.currentChat?.id == chatId
+              ? null
+              : currentState.currentChat;
+      final updatedMessages =
+          currentState.currentChat?.id == chatId
+              ? <MessageModel>[]
+              : currentState.messages;
+
       if (currentState.currentChat?.id == chatId) {
-        debugPrint('🔄 Clearing current chat reference');
         _messageStreamSubscription?.cancel();
-        if (state is ChatLoaded) {
-          emit(
-            (state as ChatLoaded).copyWith(
-              currentChat: null,
-              messages: [],
-              isLoading: false,
-            ),
-          );
-        }
-      } else {
-        // Just clear loading state
-        if (state is ChatLoaded) {
-          emit((state as ChatLoaded).copyWith(isLoading: false));
-        }
       }
+
+      emit(
+        currentState.copyWith(
+          chatHistory: sortedChats,
+          filteredChats:
+              currentState.searchQuery.isEmpty
+                  ? sortedChats
+                  : _chatUseCase.filterChats(
+                    sortedChats,
+                    currentState.searchQuery,
+                  ),
+          currentChat: updatedCurrentChat,
+          messages: updatedMessages,
+          statistics: statistics,
+          isLoading: false,
+        ),
+      );
 
       debugPrint('✅ Chat deletion completed successfully');
     } catch (e, stackTrace) {
