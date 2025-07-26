@@ -49,6 +49,7 @@ class SyncUseCase {
       }
     }
 
+    // Return sorted chats from repository (it will handle sorting)
     return await _repository.getAllChats();
   }
 

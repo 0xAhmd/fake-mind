@@ -201,7 +201,7 @@ class ChatCubit extends Cubit<ChatState> {
 
       debugPrint('🔄 Loading chat history...');
 
-      // Load chats from repository
+      // Load chats from repository (already sorted)
       final localChats = await _chatUseCase.getAllChats();
       debugPrint('✅ Loaded ${localChats.length} chats from local database');
 
@@ -243,20 +243,27 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
-  // Chat Management Methods
+  // Chat Management Methods - FIXED
   Future<void> createNewChat({String? firstMessage}) async {
     if (state is! ChatLoaded) return;
 
     try {
       final _ = state as ChatLoaded;
-      await _chatUseCase.createChat(firstMessage: firstMessage);
+      debugPrint('🆕 Creating new chat with message: $firstMessage');
 
+      // Create the new chat
+      final newChat = await _chatUseCase.createChat(firstMessage: firstMessage);
+      debugPrint('✅ New chat created: ${newChat.id} - ${newChat.title}');
+
+      // Reload chat history to get updated list
       await loadChatHistory();
 
-      if (firstMessage != null) {
-        final updatedHistory = await _chatUseCase.getAllChats();
-        final newChat = updatedHistory.first;
-        await switchToChat(newChat.id);
+      // Switch to the new chat immediately
+      await switchToChat(newChat.id);
+      debugPrint('✅ Switched to new chat: ${newChat.id}');
+
+      // If there's a first message, send it
+      if (firstMessage != null && firstMessage.trim().isNotEmpty) {
         await sendMessage(firstMessage);
       }
     } catch (e) {
@@ -270,16 +277,18 @@ class ChatCubit extends Cubit<ChatState> {
 
     try {
       final _ = state as ChatLoaded;
-      await _chatUseCase.createChat(title: chatName.trim());
+      debugPrint('🆕 Creating new chat with name: $chatName');
 
+      // Create the new chat with the specified name
+      final newChat = await _chatUseCase.createChat(title: chatName.trim());
+      debugPrint('✅ New chat created: ${newChat.id} - ${newChat.title}');
+
+      // Reload chat history to get updated list
       await loadChatHistory();
 
-      final updatedHistory = await _chatUseCase.getAllChats();
-      final newChat = updatedHistory.first;
-
-      if (state is ChatLoaded) {
-        emit((state as ChatLoaded).copyWith(currentChat: newChat));
-      }
+      // Switch to the new chat and update current state
+      await switchToChat(newChat.id);
+      debugPrint('✅ Switched to new chat: ${newChat.id}');
     } catch (e) {
       emit(ChatError(error: 'Failed to create chat: $e'));
       debugPrint('Error creating new chat with name: $e');

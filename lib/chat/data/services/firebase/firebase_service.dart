@@ -156,8 +156,19 @@ class FirebaseService {
               .cast<ChatModel>()
               .toList();
 
-      debugPrint('✅ Successfully parsed ${chats.length} chats');
-      return chats;
+      // Sort chats: pinned first (by updated_at), then unpinned (by updated_at)
+      final pinnedChats = chats.where((chat) => chat.isPinned).toList();
+      final unpinnedChats = chats.where((chat) => !chat.isPinned).toList();
+
+      pinnedChats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      unpinnedChats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+      final sortedChats = [...pinnedChats, ...unpinnedChats];
+
+      debugPrint(
+        '✅ Successfully parsed and sorted ${sortedChats.length} chats',
+      );
+      return sortedChats;
     } catch (e) {
       debugPrint('❌ Error getting chats from Firestore: $e');
       debugPrint('Stack trace: ${StackTrace.current}');
