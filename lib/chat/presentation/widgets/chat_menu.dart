@@ -17,27 +17,18 @@ class ChatMenu extends StatelessWidget {
           icon: const Icon(Icons.more_vert, color: Colors.white),
           color: const Color(0xff2a2a2a),
           onSelected: (value) => _handleMenuSelection(context, value, state),
-          itemBuilder: (BuildContext context) => [
-            _buildMenuItem(
-              'new_chat',
-              Icons.add,
-              'New Chat',
-              Colors.white,
-            ),
-            _buildMenuItem(
-              'retry',
-              Icons.refresh,
-              'Retry Failed',
-              Colors.blue,
-            ),
-            if (state is ChatLoaded && state.currentChat != null)
-              _buildMenuItem(
-                'delete',
-                Icons.delete,
-                'Delete Chat',
-                Colors.red,
-              ),
-          ],
+          itemBuilder:
+              (BuildContext context) => [
+                _buildMenuItem('new_chat', Icons.add, 'New Chat', Colors.white),
+
+                if (state is ChatLoaded && state.currentChat != null)
+                  _buildMenuItem(
+                    'delete',
+                    Icons.delete,
+                    'Delete Chat',
+                    Colors.red,
+                  ),
+              ],
         );
       },
     );
@@ -61,15 +52,17 @@ class ChatMenu extends StatelessWidget {
     );
   }
 
-  void _handleMenuSelection(BuildContext context, String value, ChatState state) {
+  void _handleMenuSelection(
+    BuildContext context,
+    String value,
+    ChatState state,
+  ) {
     final chatCubit = context.read<ChatCubit>();
-    
+
     switch (value) {
       case 'new_chat':
         chatCubit.createNewChat();
-        break;
-      case 'retry':
-        chatCubit.retryFailedMessages();
+
         break;
       case 'delete':
         if (state is ChatLoaded && state.currentChat != null) {

@@ -87,7 +87,7 @@ class ChatCubit extends Cubit<ChatState> {
       debugPrint('🔐 Starting authentication process...');
 
       // Attempt anonymous sign-in
-      final _ = await _firebaseService.signInAnonymously();
+      final result = await _firebaseService.signInAnonymously();
 
       if (_firebaseService.isAuthenticated) {
         _isAuthenticationComplete = true;
@@ -398,20 +398,61 @@ class ChatCubit extends Cubit<ChatState> {
 
     try {
       final currentState = state as ChatLoaded;
-      await _chatUseCase.deleteChat(chatId);
+      debugPrint('🗑️ Starting chat deletion: $chatId');
 
+      // Set loading state
+      emit(currentState.copyWith(isLoading: true));
+
+      // Delete from local database first
+      debugPrint('🗑️ Deleting chat from local database...');
+      await _chatUseCase.deleteChat(chatId);
+      debugPrint('✅ Chat deleted from local database');
+
+      // Delete from Firebase if authenticated
+      if (currentState.isOnline && _isAuthenticationComplete) {
+        try {
+          debugPrint('🗑️ Deleting chat from Firebase...');
+          await _firebaseService.deleteChat(chatId);
+          debugPrint('✅ Chat deleted from Firebase');
+        } catch (firebaseError) {
+          debugPrint('⚠️ Failed to delete from Firebase: $firebaseError');
+          // Don't fail the operation if local deletion succeeded
+        }
+      }
+
+      // Reload chat history
       await loadChatHistory();
 
       // Clear current chat if it was deleted
       if (currentState.currentChat?.id == chatId) {
+        debugPrint('🔄 Clearing current chat reference');
         _messageStreamSubscription?.cancel();
         if (state is ChatLoaded) {
-          emit((state as ChatLoaded).copyWith(currentChat: null, messages: []));
+          emit(
+            (state as ChatLoaded).copyWith(
+              currentChat: null,
+              messages: [],
+              isLoading: false,
+            ),
+          );
+        }
+      } else {
+        // Just clear loading state
+        if (state is ChatLoaded) {
+          emit((state as ChatLoaded).copyWith(isLoading: false));
         }
       }
-    } catch (e) {
-      emit(ChatError(error: 'Failed to delete chat: $e'));
-      debugPrint('Error deleting chat: $e');
+
+      debugPrint('✅ Chat deletion completed successfully');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error deleting chat: $e');
+      debugPrint('Stack trace: $stackTrace');
+
+      // Clear loading state and emit error
+      if (state is ChatLoaded) {
+        emit((state as ChatLoaded).copyWith(isLoading: false));
+      }
+      emit(ChatError(error: 'Failed to delete chat: ${e.toString()}'));
     }
   }
 
