@@ -222,12 +222,6 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🙏 Acknowledgments
 
 - **Google Gemini AI** for providing the powerful language model
@@ -245,3 +239,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <img src="https://img.shields.io/github/forks/0xAhmd/fake-mind?style=social" />
   <img src="https://img.shields.io/github/watchers/0xAhmd/fake-mind?style=social" />
 </div>
+
